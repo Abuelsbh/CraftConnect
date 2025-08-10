@@ -1,0 +1,20 @@
+# Register bricks which can be consumed via the Mason CLI.
+# Run "mason get" to install all registered bricks.
+# To learn more, visit https://docs.brickhub.dev.
+bricks:
+  mvc_screen_res:
+    git:
+      url: https://github.com/khaledSayedAbdellah/bricks_mvc_screen_res
+      ref: "d95b5ff"
+
+  mvc_screen:
+    git:
+      url: https://github.com/khaledSayedAbdellah/bricks_mvc_screen
+      ref: "57412c6"
+
+# dart pub global activate mason_cli
+# mason init
+# mason get
+
+# mason make mvc_screen
+# mason make mvc_screen_res
