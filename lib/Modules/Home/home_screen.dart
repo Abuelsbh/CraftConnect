@@ -206,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen>
         physics: PerformanceHelper.optimizedScrollPhysics,
         slivers: [
           _buildSliverAppBar(),
-          _buildSliverCategoryFilter(),
+          //_buildSliverCategoryFilter(),
           _buildSliverSearchBar(),
           _buildSliverCraftsList(),
         ],
@@ -566,28 +566,31 @@ class _HomeScreenState extends State<HomeScreen>
         : _sampleCrafts.where((craft) => 
             craft.id == _craftCategories[_selectedCategoryIndex].id).toList();
 
-    return SliverPadding(
-      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final craft = filteredCrafts[index];
-            return TweenAnimationBuilder<double>(
-              duration: Duration(milliseconds: 300 + (index * 100)),
-              tween: Tween(begin: 0.0, end: 1.0),
-              builder: (context, value, child) {
-                return Transform.translate(
-                  offset: Offset(0, 30 * (1 - value)),
-                  child: Opacity(
-                    opacity: value,
-                    child: _buildEnhancedCraftCard(craft, index),
-                  ),
-                );
-              },
-            );
-          },
-          childCount: filteredCrafts.length,
-        ),
+    return SliverGrid(
+      delegate: SliverChildBuilderDelegate(
+            (context, index) {
+          final craft = filteredCrafts[index];
+          return TweenAnimationBuilder<double>(
+            duration: Duration(milliseconds: 300 + (index * 100)),
+            tween: Tween(begin: 0.0, end: 1.0),
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, 30 * (1 - value)),
+                child: Opacity(
+                  opacity: value,
+                  child: _buildEnhancedCraftCard(craft, index),
+                ),
+              );
+            },
+          );
+        },
+        childCount: filteredCrafts.length,
+      ),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,       // 3 cards per row
+        mainAxisSpacing: 10,     // vertical space between rows
+        crossAxisSpacing: 10,    // horizontal space between cards
+        childAspectRatio: 0.7,  // adjust card height
       ),
     );
   }
@@ -613,13 +616,16 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.circular(20.r),
           child: Padding(
             padding: EdgeInsets.all(20.w),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // Icon with gradient background
                 Hero(
                   tag: 'craft_${craft.id}',
                   child: Container(
-                    width: 70.w,
-                    height: 70.w,
+                    width: 48.w,
+                    height: 48.w,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -629,7 +635,7 @@ class _HomeScreenState extends State<HomeScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(18.r),
+                      borderRadius: BorderRadius.circular(12.r),
                       boxShadow: [
                         BoxShadow(
                           color: _getCraftColor(craft.id).withValues(alpha: 0.3),
@@ -641,96 +647,43 @@ class _HomeScreenState extends State<HomeScreen>
                     child: Icon(
                       _getCraftIcon(craft.id),
                       color: Colors.white,
-                      size: 35.w,
+                      size: 28.w,
                     ),
                   ),
                 ),
-                SizedBox(width: 16.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        AppLocalizations.of(context)?.translate(craft.nameKey) ?? '',
-                        style: TextStyle(
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      SizedBox(height: 6.h),
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                            decoration: BoxDecoration(
-                              color: _getCraftColor(craft.id).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8.r),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.people_rounded,
-                                  size: 14.w,
-                                  color: _getCraftColor(craft.id),
-                                ),
-                                SizedBox(width: 4.w),
-                                Text(
-                                  '${craft.artisanCount} حرفي',
-                                  style: TextStyle(
-                                    fontSize: 12.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: _getCraftColor(craft.id),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(width: 8.w),
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8.r),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.star_rounded,
-                                  size: 14.w,
-                                  color: Colors.green,
-                                ),
-                                SizedBox(width: 4.w),
-                                Text(
-                                  '${craft.averageRating}',
-                                  style: TextStyle(
-                                    fontSize: 12.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.green,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 8.h),
-                      Text(
-                        'متوفر الآن في منطقتك',
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
+                SizedBox(height: 8.h),
+
+                // Craft name
+                Text(
+                  AppLocalizations.of(context)?.translate(craft.nameKey) ?? '',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Theme.of(context).colorScheme.outline,
-                  size: 16.w,
+                SizedBox(height: 4.h),
+
+                // Artisan count
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.people_rounded,
+                      size: 14.w,
+                      color: _getCraftColor(craft.id),
+                    ),
+                    SizedBox(width: 4.w),
+                    Text(
+                      '${craft.artisanCount} حرفي',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                        color: _getCraftColor(craft.id),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read and write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Chat rules - users can only access chats they participate in
+    match /chats/{chatId} {
+      allow read, write: if request.auth != null && 
+        (resource.data.participant1Id == request.auth.uid || 
+         resource.data.participant2Id == request.auth.uid);
+      
+      // Allow creation if user is one of the participants
+      allow create: if request.auth != null && 
+        (request.resource.data.participant1Id == request.auth.uid || 
+         request.resource.data.participant2Id == request.auth.uid);
+    }
+    
+    // Message rules - users can only access messages in chats they participate in
+    match /messages/{messageId} {
+      allow read, write: if request.auth != null && 
+        exists(/databases/$(database)/documents/chats/$(resource.data.chatId)) &&
+        (get(/databases/$(database)/documents/chats/$(resource.data.chatId)).data.participant1Id == request.auth.uid || 
+         get(/databases/$(database)/documents/chats/$(resource.data.chatId)).data.participant2Id == request.auth.uid);
+      
+      // Allow creation if user is participant in the chat
+      allow create: if request.auth != null && 
+        exists(/databases/$(database)/documents/chats/$(request.resource.data.chatId)) &&
+        (get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.participant1Id == request.auth.uid || 
+         get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.participant2Id == request.auth.uid) &&
+        request.resource.data.senderId == request.auth.uid;
+    }
+    
+    // Artisan rules - anyone can read artisan profiles
+    match /artisans/{artisanId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == artisanId;
+    }
+    
+    // Craft rules - anyone can read craft information
+    match /crafts/{craftId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == resource.data.artisanId;
+    }
+    
+    // Reviews rules - anyone can read, only authenticated users can write
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+  }
+} 
