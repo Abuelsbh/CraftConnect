@@ -77,6 +77,78 @@ class ChatService {
     }
   }
 
+  // Send text message
+  Future<void> sendTextMessage(String senderId, String receiverId, String content) async {
+    final message = ChatMessage(
+      id: '',
+      senderId: senderId,
+      receiverId: receiverId,
+      content: content,
+      timestamp: DateTime.now(),
+      type: MessageType.text,
+    );
+    await sendMessage(message);
+  }
+
+  // Send image message
+  Future<void> sendImageMessage(String senderId, String receiverId, String imageUrl, {String? caption}) async {
+    final message = ChatMessage(
+      id: '',
+      senderId: senderId,
+      receiverId: receiverId,
+      content: caption ?? '',
+      imageUrl: imageUrl,
+      timestamp: DateTime.now(),
+      type: MessageType.image,
+    );
+    await sendMessage(message);
+  }
+
+  // Send file message
+  Future<void> sendFileMessage(String senderId, String receiverId, String fileUrl, String fileName, String fileSize) async {
+    final message = ChatMessage(
+      id: '',
+      senderId: senderId,
+      receiverId: receiverId,
+      content: fileName,
+      fileUrl: fileUrl,
+      fileName: fileName,
+      fileSize: fileSize,
+      timestamp: DateTime.now(),
+      type: MessageType.file,
+    );
+    await sendMessage(message);
+  }
+
+  // Send location message
+  Future<void> sendLocationMessage(String senderId, String receiverId, LocationData locationData) async {
+    final message = ChatMessage(
+      id: '',
+      senderId: senderId,
+      receiverId: receiverId,
+      content: locationData.address ?? 'الموقع',
+      locationData: locationData,
+      timestamp: DateTime.now(),
+      type: MessageType.location,
+    );
+    await sendMessage(message);
+  }
+
+  // Send voice message
+  Future<void> sendVoiceMessage(String senderId, String receiverId, String voiceUrl, int duration) async {
+    final message = ChatMessage(
+      id: '',
+      senderId: senderId,
+      receiverId: receiverId,
+      content: 'رسالة صوتية',
+      voiceUrl: voiceUrl,
+      voiceDuration: duration,
+      timestamp: DateTime.now(),
+      type: MessageType.voice,
+    );
+    await sendMessage(message);
+  }
+
   // Get messages for a chat room
   Stream<List<ChatMessage>> getMessagesForRoom(String roomId) {
     return _messagesRef

@@ -6,6 +6,12 @@ class ChatMessage extends Equatable {
   final String receiverId;
   final String content;
   final String? imageUrl;
+  final String? fileUrl;
+  final String? fileName;
+  final String? fileSize;
+  final String? voiceUrl;
+  final int? voiceDuration;
+  final LocationData? locationData;
   final DateTime timestamp;
   final bool isRead;
   final MessageType type;
@@ -16,6 +22,12 @@ class ChatMessage extends Equatable {
     required this.receiverId,
     required this.content,
     this.imageUrl,
+    this.fileUrl,
+    this.fileName,
+    this.fileSize,
+    this.voiceUrl,
+    this.voiceDuration,
+    this.locationData,
     required this.timestamp,
     this.isRead = false,
     this.type = MessageType.text,
@@ -28,6 +40,14 @@ class ChatMessage extends Equatable {
       receiverId: json['receiverId'] ?? '',
       content: json['content'] ?? '',
       imageUrl: json['imageUrl'],
+      fileUrl: json['fileUrl'],
+      fileName: json['fileName'],
+      fileSize: json['fileSize'],
+      voiceUrl: json['voiceUrl'],
+      voiceDuration: json['voiceDuration'],
+      locationData: json['locationData'] != null 
+          ? LocationData.fromJson(Map<String, dynamic>.from(json['locationData']))
+          : null,
       timestamp: DateTime.fromMillisecondsSinceEpoch(json['timestamp'] ?? 0),
       isRead: json['isRead'] ?? false,
       type: MessageType.values.firstWhere(
@@ -44,6 +64,12 @@ class ChatMessage extends Equatable {
       'receiverId': receiverId,
       'content': content,
       'imageUrl': imageUrl,
+      'fileUrl': fileUrl,
+      'fileName': fileName,
+      'fileSize': fileSize,
+      'voiceUrl': voiceUrl,
+      'voiceDuration': voiceDuration,
+      'locationData': locationData?.toJson(),
       'timestamp': timestamp.millisecondsSinceEpoch,
       'isRead': isRead,
       'type': type.toString().split('.').last,
@@ -56,6 +82,12 @@ class ChatMessage extends Equatable {
     String? receiverId,
     String? content,
     String? imageUrl,
+    String? fileUrl,
+    String? fileName,
+    String? fileSize,
+    String? voiceUrl,
+    int? voiceDuration,
+    LocationData? locationData,
     DateTime? timestamp,
     bool? isRead,
     MessageType? type,
@@ -66,6 +98,12 @@ class ChatMessage extends Equatable {
       receiverId: receiverId ?? this.receiverId,
       content: content ?? this.content,
       imageUrl: imageUrl ?? this.imageUrl,
+      fileUrl: fileUrl ?? this.fileUrl,
+      fileName: fileName ?? this.fileName,
+      fileSize: fileSize ?? this.fileSize,
+      voiceUrl: voiceUrl ?? this.voiceUrl,
+      voiceDuration: voiceDuration ?? this.voiceDuration,
+      locationData: locationData ?? this.locationData,
       timestamp: timestamp ?? this.timestamp,
       isRead: isRead ?? this.isRead,
       type: type ?? this.type,
@@ -73,7 +111,22 @@ class ChatMessage extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, senderId, receiverId, content, imageUrl, timestamp, isRead, type];
+  List<Object?> get props => [
+    id, 
+    senderId, 
+    receiverId, 
+    content, 
+    imageUrl, 
+    fileUrl, 
+    fileName, 
+    fileSize, 
+    voiceUrl, 
+    voiceDuration, 
+    locationData, 
+    timestamp, 
+    isRead, 
+    type
+  ];
 }
 
 class ChatRoom extends Equatable {
@@ -186,4 +239,40 @@ enum MessageType {
   image,
   file,
   location,
+  voice,
+}
+
+class LocationData extends Equatable {
+  final double latitude;
+  final double longitude;
+  final String? address;
+  final String? placeName;
+
+  const LocationData({
+    required this.latitude,
+    required this.longitude,
+    this.address,
+    this.placeName,
+  });
+
+  factory LocationData.fromJson(Map<String, dynamic> json) {
+    return LocationData(
+      latitude: json['latitude']?.toDouble() ?? 0.0,
+      longitude: json['longitude']?.toDouble() ?? 0.0,
+      address: json['address'],
+      placeName: json['placeName'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'latitude': latitude,
+      'longitude': longitude,
+      'address': address,
+      'placeName': placeName,
+    };
+  }
+
+  @override
+  List<Object?> get props => [latitude, longitude, address, placeName];
 } 

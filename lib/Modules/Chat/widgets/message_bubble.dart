@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import '../../../Models/chat_model.dart';
-import '../../../Utilities/app_constants.dart';
 
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
@@ -62,7 +61,7 @@ class MessageBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: isMe
             ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).colorScheme.surfaceVariant,
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16.r).copyWith(
           bottomLeft: isMe ? Radius.circular(16.r) : Radius.circular(4.r),
           bottomRight: isMe ? Radius.circular(4.r) : Radius.circular(16.r),
@@ -71,7 +70,7 @@ class MessageBubble extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -96,6 +95,8 @@ class MessageBubble extends StatelessWidget {
         return _buildFileMessage(context);
       case MessageType.location:
         return _buildLocationMessage(context);
+      case MessageType.voice:
+        return _buildVoiceMessage(context);
     }
   }
 
@@ -204,16 +205,90 @@ class MessageBubble extends StatelessWidget {
             size: 20.w,
           ),
           SizedBox(width: 8.w),
-          Text(
-            'الموقع',
-            style: TextStyle(
-              fontSize: 14.sp,
-              color: Theme.of(context).colorScheme.onSurface,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'الموقع',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                if (message.locationData?.address != null) ...[
+                  SizedBox(height: 4.h),
+                  Text(
+                    message.locationData!.address!,
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildVoiceMessage(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(8.w),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8.r),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.play_arrow_rounded,
+            color: Theme.of(context).colorScheme.primary,
+            size: 24.w,
+          ),
+          SizedBox(width: 8.w),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'رسالة صوتية',
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              if (message.voiceDuration != null) ...[
+                SizedBox(height: 4.h),
+                Text(
+                  _formatDuration(Duration(seconds: message.voiceDuration!)),
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    String minutes = twoDigits(duration.inMinutes.remainder(60));
+    String seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
   }
 
   Widget _buildMessageStatus(BuildContext context) {
@@ -250,7 +325,7 @@ class MessageBubble extends StatelessWidget {
 
     if (messageDate == today) {
       return DateFormat('HH:mm').format(time);
-    } else if (messageDate == today.subtract(Duration(days: 1))) {
+    } else if (messageDate == today.subtract(const Duration(days: 1))) {
       return 'أمس';
     } else {
       return DateFormat('dd/MM').format(time);

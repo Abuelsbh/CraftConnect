@@ -194,11 +194,6 @@ class ChatRoomTile extends StatelessWidget {
   }
 
   Future<UserModel?> _getOtherParticipantInfo() async {
-    // Get the other participant ID
-    final otherId = room.participant1Id == currentUserId
-        ? room.participant2Id
-        : room.participant1Id;
-    
     // This would typically come from a service
     // For now, we'll return null and handle it in the UI
     return null;

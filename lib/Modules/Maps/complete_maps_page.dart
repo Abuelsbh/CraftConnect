@@ -823,10 +823,10 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         _buildFilterChips(),
         
         // معلومات الخريطة
-        _buildMapInfo(),
+       // _buildMapInfo(),
         
         // أسطورة الألوان
-        _buildLegend(),
+       // _buildLegend(),
       ],
     );
   }
@@ -918,7 +918,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
 
   Widget _buildFilterChips() {
     return Positioned(
-      top: 16.h,
+      bottom: 16.h,
       left: 16.w,
       right: 16.w,
       child: Container(
@@ -933,6 +933,11 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                 ? _artisans.length 
                 : _artisans.where((a) => a.craftType == craftType).length;
             
+            // الحصول على لون الحرفة
+            final craftColor = craftType == 'all' 
+                ? Theme.of(context).colorScheme.primary 
+                : _getCraftColor(craftType);
+            
             return Container(
               margin: EdgeInsets.only(right: 8.w),
               child: FilterChip(
@@ -943,7 +948,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                       craftType == 'all' ? 'الكل' : _getCraftNameArabic(craftType),
                       style: TextStyle(
                         fontSize: 12.sp,
-                        color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+                        color: isSelected ? Colors.white : craftColor,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -951,14 +956,14 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
                       decoration: BoxDecoration(
-                        color: (isSelected ? Colors.white : Theme.of(context).colorScheme.primary).withValues(alpha: 0.2),
+                        color: (isSelected ? Colors.white : craftColor).withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8.r),
                       ),
                       child: Text(
                         '$count',
                         style: TextStyle(
                           fontSize: 10.sp,
-                          color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+                          color: isSelected ? Colors.white : craftColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -972,11 +977,11 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                   });
                   _createMarkers();
                 },
-                backgroundColor: Colors.white,
-                selectedColor: Theme.of(context).colorScheme.primary,
+                backgroundColor: isSelected ? craftColor : craftColor.withValues(alpha: 0.1),
+                selectedColor: craftColor,
                 checkmarkColor: Colors.white,
                 side: BorderSide(
-                  color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  color: isSelected ? craftColor : craftColor.withValues(alpha: 0.5),
                   width: 2,
                 ),
                 elevation: isSelected ? 4 : 2,

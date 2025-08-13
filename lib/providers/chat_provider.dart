@@ -90,32 +90,102 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  // Send message
-  Future<void> sendMessage(String content, {String? imageUrl, MessageType type = MessageType.text}) async {
+  // Send text message
+  Future<void> sendTextMessage(String content) async {
     if (_currentUser == null || _currentRoom == null) {
       _setError('يجب تسجيل الدخول أولاً');
       return;
     }
 
     try {
-      // Determine receiver ID
       final receiverId = _currentRoom!.participant1Id == _currentUser!.id
           ? _currentRoom!.participant2Id
           : _currentRoom!.participant1Id;
 
-      final message = ChatMessage(
-        id: '', // Will be set by service
-        senderId: _currentUser!.id,
-        receiverId: receiverId,
-        content: content,
-        imageUrl: imageUrl,
-        timestamp: DateTime.now(),
-        type: type,
-      );
-
-      await _chatService.sendMessage(message);
+      await _chatService.sendTextMessage(_currentUser!.id, receiverId, content);
     } catch (e) {
       _setError('فشل في إرسال الرسالة: $e');
+    }
+  }
+
+  // Send image message
+  Future<void> sendImageMessage(String imageUrl, {String? caption}) async {
+    if (_currentUser == null || _currentRoom == null) {
+      _setError('يجب تسجيل الدخول أولاً');
+      return;
+    }
+
+    try {
+      final receiverId = _currentRoom!.participant1Id == _currentUser!.id
+          ? _currentRoom!.participant2Id
+          : _currentRoom!.participant1Id;
+
+      await _chatService.sendImageMessage(_currentUser!.id, receiverId, imageUrl, caption: caption);
+    } catch (e) {
+      _setError('فشل في إرسال الصورة: $e');
+    }
+  }
+
+  // Send file message
+  Future<void> sendFileMessage(String fileUrl, String fileName, String fileSize) async {
+    if (_currentUser == null || _currentRoom == null) {
+      _setError('يجب تسجيل الدخول أولاً');
+      return;
+    }
+
+    try {
+      final receiverId = _currentRoom!.participant1Id == _currentUser!.id
+          ? _currentRoom!.participant2Id
+          : _currentRoom!.participant1Id;
+
+      await _chatService.sendFileMessage(_currentUser!.id, receiverId, fileUrl, fileName, fileSize);
+    } catch (e) {
+      _setError('فشل في إرسال الملف: $e');
+    }
+  }
+
+  // Send location message
+  Future<void> sendLocationMessage(LocationData locationData) async {
+    if (_currentUser == null || _currentRoom == null) {
+      _setError('يجب تسجيل الدخول أولاً');
+      return;
+    }
+
+    try {
+      final receiverId = _currentRoom!.participant1Id == _currentUser!.id
+          ? _currentRoom!.participant2Id
+          : _currentRoom!.participant1Id;
+
+      await _chatService.sendLocationMessage(_currentUser!.id, receiverId, locationData);
+    } catch (e) {
+      _setError('فشل في إرسال الموقع: $e');
+    }
+  }
+
+  // Send voice message
+  Future<void> sendVoiceMessage(String voiceUrl, int duration) async {
+    if (_currentUser == null || _currentRoom == null) {
+      _setError('يجب تسجيل الدخول أولاً');
+      return;
+    }
+
+    try {
+      final receiverId = _currentRoom!.participant1Id == _currentUser!.id
+          ? _currentRoom!.participant2Id
+          : _currentRoom!.participant1Id;
+
+      await _chatService.sendVoiceMessage(_currentUser!.id, receiverId, voiceUrl, duration);
+    } catch (e) {
+      _setError('فشل في إرسال الرسالة الصوتية: $e');
+    }
+  }
+
+  // Legacy method for backward compatibility
+  Future<void> sendMessage(String content, {String? imageUrl, MessageType type = MessageType.text}) async {
+    if (type == MessageType.image && imageUrl != null) {
+      await sendImageMessage(imageUrl, caption: content);
+    } else {
+      await sendTextMessage(content);
     }
   }
 
