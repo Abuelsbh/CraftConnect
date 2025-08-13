@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import '../models/artisan_model.dart';
-import '../models/craft_model.dart';
-import '../models/user_model.dart';
+import '../Models/artisan_model.dart';
+import '../Models/craft_model.dart';
+import '../Models/user_model.dart';
 
 class AppProvider with ChangeNotifier {
   // حالة التطبيق العامة

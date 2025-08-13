@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../Utilities/app_constants.dart';
 import '../../Utilities/performance_helper.dart';
 import '../../core/Language/locales.dart';
-import '../../models/artisan_model.dart';
+import '../../Models/artisan_model.dart';
 
 class OptimizedMapsPage extends StatefulWidget {
   const OptimizedMapsPage({super.key});

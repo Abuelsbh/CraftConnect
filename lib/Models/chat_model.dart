@@ -1,0 +1,189 @@
+import 'package:equatable/equatable.dart';
+
+class ChatMessage extends Equatable {
+  final String id;
+  final String senderId;
+  final String receiverId;
+  final String content;
+  final String? imageUrl;
+  final DateTime timestamp;
+  final bool isRead;
+  final MessageType type;
+
+  const ChatMessage({
+    required this.id,
+    required this.senderId,
+    required this.receiverId,
+    required this.content,
+    this.imageUrl,
+    required this.timestamp,
+    this.isRead = false,
+    this.type = MessageType.text,
+  });
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['id'] ?? '',
+      senderId: json['senderId'] ?? '',
+      receiverId: json['receiverId'] ?? '',
+      content: json['content'] ?? '',
+      imageUrl: json['imageUrl'],
+      timestamp: DateTime.fromMillisecondsSinceEpoch(json['timestamp'] ?? 0),
+      isRead: json['isRead'] ?? false,
+      type: MessageType.values.firstWhere(
+        (e) => e.toString() == 'MessageType.${json['type'] ?? 'text'}',
+        orElse: () => MessageType.text,
+      ),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'senderId': senderId,
+      'receiverId': receiverId,
+      'content': content,
+      'imageUrl': imageUrl,
+      'timestamp': timestamp.millisecondsSinceEpoch,
+      'isRead': isRead,
+      'type': type.toString().split('.').last,
+    };
+  }
+
+  ChatMessage copyWith({
+    String? id,
+    String? senderId,
+    String? receiverId,
+    String? content,
+    String? imageUrl,
+    DateTime? timestamp,
+    bool? isRead,
+    MessageType? type,
+  }) {
+    return ChatMessage(
+      id: id ?? this.id,
+      senderId: senderId ?? this.senderId,
+      receiverId: receiverId ?? this.receiverId,
+      content: content ?? this.content,
+      imageUrl: imageUrl ?? this.imageUrl,
+      timestamp: timestamp ?? this.timestamp,
+      isRead: isRead ?? this.isRead,
+      type: type ?? this.type,
+    );
+  }
+
+  @override
+  List<Object?> get props => [id, senderId, receiverId, content, imageUrl, timestamp, isRead, type];
+}
+
+class ChatRoom extends Equatable {
+  final String id;
+  final String participant1Id;
+  final String participant2Id;
+  final String? lastMessage;
+  final DateTime? lastMessageTime;
+  final bool hasUnreadMessages;
+  final int unreadCount;
+  final String? participant1Name;
+  final String? participant2Name;
+  final String? participant1Image;
+  final String? participant2Image;
+
+  const ChatRoom({
+    required this.id,
+    required this.participant1Id,
+    required this.participant2Id,
+    this.lastMessage,
+    this.lastMessageTime,
+    this.hasUnreadMessages = false,
+    this.unreadCount = 0,
+    this.participant1Name,
+    this.participant2Name,
+    this.participant1Image,
+    this.participant2Image,
+  });
+
+  factory ChatRoom.fromJson(Map<String, dynamic> json) {
+    return ChatRoom(
+      id: json['id'] ?? '',
+      participant1Id: json['participant1Id'] ?? '',
+      participant2Id: json['participant2Id'] ?? '',
+      lastMessage: json['lastMessage'],
+      lastMessageTime: json['lastMessageTime'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(json['lastMessageTime'])
+          : null,
+      hasUnreadMessages: json['hasUnreadMessages'] ?? false,
+      unreadCount: json['unreadCount'] ?? 0,
+      participant1Name: json['participant1Name'],
+      participant2Name: json['participant2Name'],
+      participant1Image: json['participant1Image'],
+      participant2Image: json['participant2Image'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'participant1Id': participant1Id,
+      'participant2Id': participant2Id,
+      'lastMessage': lastMessage,
+      'lastMessageTime': lastMessageTime?.millisecondsSinceEpoch,
+      'hasUnreadMessages': hasUnreadMessages,
+      'unreadCount': unreadCount,
+      'participant1Name': participant1Name,
+      'participant2Name': participant2Name,
+      'participant1Image': participant1Image,
+      'participant2Image': participant2Image,
+    };
+  }
+
+  ChatRoom copyWith({
+    String? id,
+    String? participant1Id,
+    String? participant2Id,
+    String? lastMessage,
+    DateTime? lastMessageTime,
+    bool? hasUnreadMessages,
+    int? unreadCount,
+    String? participant1Name,
+    String? participant2Name,
+    String? participant1Image,
+    String? participant2Image,
+  }) {
+    return ChatRoom(
+      id: id ?? this.id,
+      participant1Id: participant1Id ?? this.participant1Id,
+      participant2Id: participant2Id ?? this.participant2Id,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessageTime: lastMessageTime ?? this.lastMessageTime,
+      hasUnreadMessages: hasUnreadMessages ?? this.hasUnreadMessages,
+      unreadCount: unreadCount ?? this.unreadCount,
+      participant1Name: participant1Name ?? this.participant1Name,
+      participant2Name: participant2Name ?? this.participant2Name,
+      participant1Image: participant1Image ?? this.participant1Image,
+      participant2Image: participant2Image ?? this.participant2Image,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        id,
+        participant1Id,
+        participant2Id,
+        lastMessage,
+        lastMessageTime,
+        hasUnreadMessages,
+        unreadCount,
+        participant1Name,
+        participant2Name,
+        participant1Image,
+        participant2Image,
+      ];
+}
+
+enum MessageType {
+  text,
+  image,
+  file,
+  location,
+} 

@@ -20,6 +20,7 @@ import 'core/Language/locales.dart';
 import 'core/Theme/theme_provider.dart';
 import 'providers/app_provider.dart';
 import 'providers/simple_auth_provider.dart';
+import 'providers/chat_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +82,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider<AppProvider>(create: (_) => AppProvider()),
         ChangeNotifierProvider<SimpleAuthProvider>(create: (_) => SimpleAuthProvider()),
+        ChangeNotifierProvider<ChatProvider>(create: (_) => ChatProvider()),
         ChangeNotifierProvider<ThemeProvider>(
           create: (_) {
             final provider = ThemeProvider();

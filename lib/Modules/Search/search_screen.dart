@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
-import '../../models/artisan_model.dart';
+import '../../Models/artisan_model.dart';
 import '../../providers/app_provider.dart';
 
 class SearchScreen extends StatefulWidget {

@@ -7,7 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
-import '../../models/artisan_model.dart';
+import '../../Models/artisan_model.dart';
 
 class CompleteMapsPage extends StatefulWidget {
   const CompleteMapsPage({super.key});

@@ -133,42 +133,6 @@ class _LoginScreenState extends State<LoginScreen>
             color: Theme.of(context).colorScheme.outline,
           ),
         ),
-        SizedBox(height: 16.h),
-        Container(
-          padding: EdgeInsets.all(12.w),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(8.r),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '🔧 حساب تجريبي:',
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
-              ),
-              SizedBox(height: 4.h),
-              Text(
-                'البريد: test@example.com',
-                style: TextStyle(
-                  fontSize: 12.sp,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
-              ),
-              Text(
-                'كلمة المرور: 123456',
-                style: TextStyle(
-                  fontSize: 12.sp,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }

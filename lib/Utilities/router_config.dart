@@ -10,6 +10,8 @@ import '../Modules/Auth/login_screen.dart';
 import '../Modules/Auth/register_screen.dart';
 import '../Modules/Auth/forgot_password_screen.dart';
 import '../Modules/Auth/phone_login_screen.dart';
+import '../Modules/Chat/chat_page.dart';
+import '../Modules/Chat/chat_room_screen.dart';
 
 
 BuildContext? get currentContext_ =>
@@ -109,6 +111,24 @@ class GoRouterConfig {
           return getCustomTransitionPage(
             state: state,
             child: const PhoneLoginScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/chat',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const ChatPage(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/chat-room',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const ChatRoomScreen(),
           );
         },
       ),

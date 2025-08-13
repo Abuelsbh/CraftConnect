@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
-import '../../models/artisan_model.dart';
+import '../../Models/artisan_model.dart';
+import '../../providers/simple_auth_provider.dart';
+import '../../providers/chat_provider.dart';
 
 
 class CraftDetailsScreen extends StatefulWidget {
@@ -432,8 +435,7 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        // TODO: فتح الدردشة
-                        _showLoginDialog();
+                        _handleMessageButton(artisan);
                       },
                       icon: Icon(
                         Icons.chat_rounded,
@@ -486,6 +488,51 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
         ),
       ),
     );
+  }
+
+  void _handleMessageButton(ArtisanModel artisan) {
+    final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    
+    if (authProvider.isLoggedIn) {
+      _startChatWithArtisan(chatProvider, artisan);
+    } else {
+      _showLoginDialog();
+    }
+  }
+
+  void _startChatWithArtisan(ChatProvider chatProvider, ArtisanModel artisan) async {
+    try {
+      // إنشاء غرفة دردشة مع الحرفي والحصول عليها مباشرة
+      final room = await chatProvider.createChatRoomAndReturn(artisan.id);
+      
+      if (room != null) {
+        // فتح غرفة الدردشة
+        await chatProvider.openChatRoom(room.id);
+        
+        if (mounted) {
+          context.push('/chat-room');
+        }
+              } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.of(context)?.translate('chat_creation_failed') ?? 'فشل في إنشاء المحادثة'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+          } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${AppLocalizations.of(context)?.translate('chat_creation_failed') ?? 'فشل في إنشاء المحادثة'}: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
   }
 
   void _showLoginDialog() {

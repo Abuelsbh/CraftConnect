@@ -1,184 +1,268 @@
-# CraftConnect - Artisan Marketplace
+# رابط الحرف - تطبيق الحرفيين
 
-A modern Flutter mobile application designed for both artisans (craftsmen) and users searching for local service providers. The app features a beautiful, smooth UI/UX with animations and supports both Arabic and English languages.
+تطبيق Flutter متكامل يربط المستخدمين بالحرفيين المحليين، مع نظام دردشة فوري متطور.
 
-## Features Implemented (Phase 1)
+## 🚀 المميزات
 
-### ✅ Core Features
-- **Animated Splash Screen**: Visually impressive splash screen with logo animation and background transitions
-- **Onboarding Flow**: Clean onboarding screen that appears only on first app launch
-- **Multi-language Support**: Full Arabic and English internationalization
-- **Light & Dark Theme**: Modern theming system with user preference support
-- **Responsive Design**: Adapts to various screen sizes using Rush and ScreenUtil
+### ✅ المميزات المكتملة
+- **نظام المصادقة الكامل**: تسجيل الدخول والتسجيل مع Firebase Auth
+- **نظام الدردشة الفوري**: محادثات فورية باستخدام Firebase Realtime Database
+- **الخرائط التفاعلية**: عرض الحرفيين على الخريطة مع Google Maps
+- **البحث والفلترة**: البحث عن الحرفيين حسب الموقع ونوع الحرفة
+- **الملفات الشخصية**: ملفات شخصية تفصيلية للحرفيين
+- **الترجمة**: دعم كامل للعربية والإنجليزية
+- **التصميم المتجاوب**: واجهة مستخدم حديثة ومتجاوبة
 
-### ✅ Home Page Features
-- **Modern App Bar**: Logo, app name, search and notification icons
-- **Craft Categories Filter**: Horizontal scrollable filter with icons and counts
-- **Craft Listings**: Beautiful cards showing craft details and artisan counts
-- **Bottom Navigation**: 5-tab navigation (Home, Chat, Maps, Profile, Submit Request)
-- **Smooth Animations**: Staggered animations throughout the app
+### 🔄 المميزات المخططة
+- **الرسائل الصوتية**: تسجيل وإرسال رسائل صوتية
+- **الإشعارات**: إشعارات فورية للرسائل الجديدة
+- **نظام الدفع**: دفع إلكتروني للخدمات
+- **التقييمات**: نظام تقييم وتعليقات
+- **الحجز المباشر**: حجز مواعيد مع الحرفيين
 
-### ✅ Architecture & Code Quality
-- **Clean Architecture**: Well-structured codebase with proper separation of concerns
-- **Provider Pattern**: State management using Provider
-- **Responsive Layout**: Supports various screen sizes
-- **Modular Structure**: Organized code in modules and utilities
+## 🛠️ التقنيات المستخدمة
 
-### ✅ Dependencies Added
-- Firebase (Core, Auth, Firestore, Storage)
-- Google Maps Flutter
-- Geolocator & Geocoding
-- Lottie & Flutter Staggered Animations
-- Cached Network Image
-- UUID and other utilities
+### Frontend
+- **Flutter**: إطار العمل الرئيسي
+- **Provider**: إدارة الحالة
+- **Go Router**: التنقل بين الصفحات
+- **Flutter Screenutil**: التصميم المتجاوب
 
-## App Structure
+### Backend & Services
+- **Firebase Authentication**: نظام المصادقة
+- **Firebase Realtime Database**: قاعدة البيانات الفورية للدردشة
+- **Cloud Firestore**: قاعدة البيانات الرئيسية
+- **Firebase Storage**: تخزين الملفات والصور
+- **Google Maps**: الخرائط التفاعلية
 
-### 1. Splash Screen ✅
-- Animated logo with elastic scaling and rotation
-- Gradient background with fade-in effect
-- App name and welcome text with slide animations
-- Loading indicator
-- Auto-navigation to onboarding or home based on first-time status
+### Libraries
+- **geolocator**: تحديد الموقع
+- **geocoding**: تحويل الإحداثيات إلى عناوين
+- **intl**: الترجمة والتوطين
+- **uuid**: إنشاء معرفات فريدة
+- **equatable**: مقارنة الكائنات
 
-### 2. Onboarding Screen ✅
-- 3 beautiful pages explaining app purpose
-- Smooth page transitions with indicators
-- Skip functionality
-- Staggered animations for content reveal
-- Persists completion state to avoid showing again
+## 📱 نظام الدردشة
 
-### 3. Home Page ✅
-- **App Bar**: Logo, app name, search and notifications
-- **Category Filter**: Horizontal scrollable craft categories with:
-  - Icons for each craft type
-  - Category names (localized)
-  - Artisan counts
-  - Selection highlighting with animations
-- **Craft List**: Vertical list showing:
-  - Craft icons and names
-  - Brief descriptions
-  - Number of available artisans
-  - Navigation arrows
-- **Bottom Navigation**: 5 tabs with animated selection states
+### المميزات
+- **محادثات فورية**: استخدام Firebase Realtime Database
+- **واجهة مستخدم حديثة**: تصميم جميل ومتجاوب
+- **إدارة المحادثات**: إنشاء وحذف وإدارة غرف الدردشة
+- **عرض الرسائل**: فقاعات رسائل جميلة مع دعم النصوص والصور
+- **حالة الرسائل**: عرض حالة الإرسال والقراءة
+- **الوقت والتاريخ**: عرض توقيت الرسائل بشكل ذكي
 
-### 4. Bottom Navigation ✅
-- **Home**: Craft categories and listings
-- **Chat**: Placeholder (Phase 2)
-- **Maps**: Placeholder (Phase 2) 
-- **Profile**: Placeholder (Phase 2)
-- **Submit Request**: Placeholder (Phase 2)
+### البنية التقنية
+```
+lib/Modules/Chat/
+├── chat_page.dart: صفحة قائمة المحادثات
+├── chat_room_screen.dart: شاشة غرفة الدردشة
+└── widgets/
+    ├── chat_room_tile.dart: عنصر غرفة الدردشة
+    ├── message_bubble.dart: فقاعة الرسالة
+    └── chat_input.dart: إدخال الدردشة
+```
 
-## Phase 2 Features (Coming Soon)
-
-### 🔄 Planned Features
-- **Craft Details Page**: List artisans by craft, sorted by distance
-- **Artisan Profile Page**: Detailed artisan info with gallery
-- **Google Maps Integration**: Show artisan locations with markers
-- **Firebase Integration**: Authentication and real-time data
-- **Chat System**: Real-time messaging between users and artisans
-- **User Authentication**: Login/register functionality
-- **Artisan Registration**: Allow artisans to create profiles
-- **Location Services**: GPS-based distance calculations
-- **Search & Filtering**: Advanced search functionality
-
-## Technical Stack
-
-- **Frontend**: Flutter 3.5.3+
-- **State Management**: Provider Pattern
-- **Routing**: GoRouter
-- **Responsive Design**: Rush + ScreenUtil
-- **Internationalization**: Built-in Flutter i18n
-- **Animations**: Flutter Staggered Animations + Lottie
-- **Backend (Phase 2)**: Firebase (Auth, Firestore, Storage)
-- **Maps (Phase 2)**: Google Maps Flutter
-- **Location (Phase 2)**: Geolocator
-
-## Supported Crafts
-
-The app supports various craft categories:
-- 🔨 Carpenter - Wood working and furniture
-- ⚡ Electrician - Electrical installations
-- 🚰 Plumber - Plumbing and water systems  
-- 🎨 Painter - Interior and exterior painting
-- 🔧 Mechanic - Vehicle repair and maintenance
-- ✂️ Tailor - Custom clothing and alterations
-- ⚒️ Blacksmith - Metalworking
-- 🔥 Welder - Metal joining services
-- 🧱 Mason - Construction and masonry
-- 🌱 Gardener - Landscaping and garden care
-
-## Getting Started
-
-### Prerequisites
-- Flutter SDK 3.5.3 or higher
-- Dart SDK
-- Android Studio / VS Code
-- iOS development: Xcode (for iOS)
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd template_2025-main
-   ```
-
-2. **Install dependencies**
-   ```bash
-   flutter pub get
-   ```
-
-3. **Run the app**
-   ```bash
-   flutter run
-   ```
-
-### Language Support
-
-The app supports:
-- **English** (default)
-- **Arabic** (RTL support)
-
-Language files are located in `i18n/` directory.
-
-## Project Structure
+## 🏗️ هيكل المشروع
 
 ```
 lib/
-├── core/
-│   ├── Font/              # Font management
-│   ├── Language/          # Internationalization
-│   └── Theme/             # Theme management
-├── models/                # Data models
-│   ├── artisan_model.dart
-│   ├── craft_model.dart
-│   └── user_model.dart
-├── Modules/
-│   ├── Splash/            # Splash screen
-│   ├── Onboarding/        # Onboarding flow
-│   └── Home/              # Home screen with navigation
-├── Utilities/             # Helper classes and constants
-└── Widgets/               # Reusable widgets
+├── core/                    # النواة الأساسية
+│   ├── Font/               # إدارة الخطوط
+│   ├── Language/           # الترجمة والتوطين
+│   ├── Theme/              # إدارة السمات
+│   └── network/            # إدارة الشبكة
+├── features/               # الميزات الرئيسية
+│   ├── auth/               # نظام المصادقة
+│   ├── chat/               # نظام الدردشة
+│   ├── home/               # الصفحة الرئيسية
+│   ├── maps/               # الخرائط
+│   └── onboarding/         # صفحات الترحيب
+├── Models/                 # نماذج البيانات
+├── Modules/                # وحدات التطبيق
+├── providers/              # مزودي الحالة
+├── services/               # الخدمات
+├── shared/                 # المكونات المشتركة
+└── Utilities/              # الأدوات المساعدة
 ```
 
-## Contributing
+## 🚀 التثبيت والتشغيل
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### المتطلبات
+- Flutter SDK 3.5.3+
+- Dart 3.0+
+- Android Studio / VS Code
+- حساب Firebase
 
-## License
+### خطوات التثبيت
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+1. **استنساخ المشروع**
+```bash
+git clone <repository-url>
+cd template_2025-main
+```
 
-## Contact
+2. **تثبيت التبعيات**
+```bash
+flutter pub get
+```
 
-For questions or support, please contact the development team.
+3. **إعداد Firebase**
+   - إنشاء مشروع Firebase جديد
+   - إضافة تطبيق Android/iOS
+   - تحميل ملف `google-services.json` (Android)
+   - تحميل ملف `GoogleService-Info.plist` (iOS)
+   - وضع الملفات في المجلدات المناسبة
+
+4. **تكوين Firebase Realtime Database**
+   - إنشاء قاعدة البيانات
+   - تعيين قواعد الأمان
+   - تفعيل المصادقة
+
+5. **تشغيل التطبيق**
+```bash
+flutter run
+```
+
+## 🔧 التكوين
+
+### Firebase Realtime Database Rules
+```json
+{
+  "rules": {
+    "chat_rooms": {
+      "$roomId": {
+        ".read": "auth != null && (data.child('participant1Id').val() == auth.uid || data.child('participant2Id').val() == auth.uid)",
+        ".write": "auth != null && (data.child('participant1Id').val() == auth.uid || data.child('participant2Id').val() == auth.uid)"
+      }
+    },
+    "messages": {
+      "$messageId": {
+        ".read": "auth != null && (data.child('senderId').val() == auth.uid || data.child('receiverId').val() == auth.uid)",
+        ".write": "auth != null && data.child('senderId').val() == auth.uid"
+      }
+    }
+  }
+}
+```
+
+## 📊 قاعدة البيانات
+
+### Firebase Realtime Database Structure
+```json
+{
+  "chat_rooms": {
+    "user1_user2": {
+      "id": "user1_user2",
+      "participant1Id": "user1",
+      "participant2Id": "user2",
+      "lastMessage": "آخر رسالة",
+      "lastMessageTime": 1640995200000,
+      "hasUnreadMessages": true,
+      "unreadCount": 3
+    }
+  },
+  "messages": {
+    "message_id": {
+      "id": "message_id",
+      "senderId": "user1",
+      "receiverId": "user2",
+      "content": "محتوى الرسالة",
+      "imageUrl": "رابط الصورة (اختياري)",
+      "timestamp": 1640995200000,
+      "isRead": false,
+      "type": "text"
+    }
+  }
+}
+```
+
+## 🎨 التصميم
+
+### السمات المدعومة
+- **الوضع الفاتح**: تصميم نظيف وحديث
+- **الوضع المظلم**: تجربة مستخدم مريحة في الإضاءة المنخفضة
+- **الخطوط**: دعم خطوط عربية وإنجليزية
+- **الألوان**: نظام ألوان متسق ومتجاوب
+
+### المكونات
+- **ChatRoomTile**: عرض غرف الدردشة
+- **MessageBubble**: فقاعات الرسائل
+- **ChatInput**: إدخال الرسائل
+- **CustomButton**: أزرار مخصصة
+- **CustomTextField**: حقول إدخال مخصصة
+
+## 🔒 الأمان
+
+- **المصادقة**: يجب تسجيل الدخول للوصول للمحادثات
+- **الصلاحيات**: يمكن للمستخدمين الوصول فقط لمحادثاتهم
+- **التحقق**: التحقق من هوية المرسل والمستقبل
+- **التشفير**: تشفير البيانات في النقل
+
+## 📈 الأداء
+
+- **Streaming**: استخدام Streams للرسائل الفورية
+- **Caching**: تخزين مؤقت للرسائل والمحادثات
+- **Lazy Loading**: تحميل الرسائل عند الحاجة
+- **Optimization**: تحسين استعلامات قاعدة البيانات
+
+## 🧪 الاختبار
+
+```bash
+# تشغيل الاختبارات
+flutter test
+
+# تحليل الكود
+flutter analyze
+
+# بناء التطبيق
+flutter build apk --release
+```
+
+## 📱 المنصات المدعومة
+
+- ✅ Android
+- ✅ iOS
+- 🔄 Web (قيد التطوير)
+- 🔄 Desktop (قيد التطوير)
+
+## 🤝 المساهمة
+
+نرحب بالمساهمات! يرجى اتباع الخطوات التالية:
+
+1. Fork المشروع
+2. إنشاء فرع للميزة الجديدة
+3. Commit التغييرات
+4. Push إلى الفرع
+5. إنشاء Pull Request
+
+## 📄 الترخيص
+
+هذا المشروع مرخص تحت رخصة MIT. راجع ملف `LICENSE` للتفاصيل.
+
+## 📞 الدعم
+
+لأي استفسارات أو مشاكل تقنية:
+- 📧 البريد الإلكتروني: support@craftconnect.com
+- 💬 الدردشة: [Telegram Channel](https://t.me/craftconnect)
+- 📖 التوثيق: [Documentation](https://docs.craftconnect.com)
+
+## 🎯 الطريق المستقبلي
+
+### المرحلة التالية
+1. **الرسائل الصوتية**: إضافة دعم الرسائل الصوتية
+2. **الإشعارات**: إشعارات فورية للرسائل الجديدة
+3. **البحث**: البحث في محتوى الرسائل
+4. **المرفقات**: دعم أنواع ملفات أكثر
+
+### التحسينات المخططة
+1. **التشفير**: تشفير الرسائل من طرف إلى طرف
+2. **النسخ الاحتياطي**: نسخ احتياطي للرسائل
+3. **الأرشفة**: أرشفة المحادثات القديمة
+4. **التصدير**: تصدير المحادثات
 
 ---
 
-**Note**: This is Phase 1 of the CraftConnect app. More features including real-time chat, maps integration, and Firebase backend will be added in Phase 2.
-# CraftConnect
+**تم التطوير بواسطة فريق رابط الحرف**  
+**الإصدار**: 1.0.0  
+**التاريخ**: 2025

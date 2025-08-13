@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-
 import 'package:go_router/go_router.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import 'package:provider/provider.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
-import '../../models/artisan_model.dart';
+import '../../Models/artisan_model.dart';
+import '../../providers/simple_auth_provider.dart';
+import '../../providers/chat_provider.dart';
 
 class ArtisanProfileScreen extends StatefulWidget {
   final String artisanId;
@@ -383,6 +385,9 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
   }
 
   Widget _buildActionButtons() {
+    final authProvider = Provider.of<SimpleAuthProvider>(context);
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppConstants.padding),
       child: Row(
@@ -390,7 +395,11 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () {
-                _showLoginDialog();
+                if (authProvider.isLoggedIn) {
+                  _startChatWithArtisan(chatProvider);
+                } else {
+                  _showLoginDialog();
+                }
               },
               icon: Icon(Icons.chat_rounded, size: 20.w),
               label: Text(
@@ -783,6 +792,42 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
     );
   }
 
+  void _startChatWithArtisan(ChatProvider chatProvider) async {
+    if (_artisan == null) return;
+    
+    try {
+      // إنشاء غرفة دردشة مع الحرفي والحصول عليها مباشرة
+      final room = await chatProvider.createChatRoomAndReturn(_artisan!.id);
+      
+      if (room != null) {
+        // فتح غرفة الدردشة
+        await chatProvider.openChatRoom(room.id);
+        
+        if (mounted) {
+          context.push('/chat-room');
+        }
+              } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.of(context)?.translate('chat_creation_failed') ?? 'فشل في إنشاء المحادثة'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+          } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${AppLocalizations.of(context)?.translate('chat_creation_failed') ?? 'فشل في إنشاء المحادثة'}: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+  }
+
   void _showLoginDialog() {
     showDialog(
       context: context,
@@ -792,7 +837,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('إلغاء'),
+            child: const Text('إلغاء'),
           ),
           ElevatedButton(
             onPressed: () {

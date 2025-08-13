@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import '../models/user_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../Models/user_model.dart';
 import '../Utilities/shared_preferences.dart';
 
 class SimpleAuthProvider with ChangeNotifier {
@@ -16,6 +17,7 @@ class SimpleAuthProvider with ChangeNotifier {
   bool get isLoggedIn => _isLoggedIn;
 
   final fb.FirebaseAuth _auth = fb.FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   SimpleAuthProvider() {
     _initializeAuth();
@@ -30,8 +32,7 @@ class SimpleAuthProvider with ChangeNotifier {
       if (user != null) {
         // قام المستخدم بتسجيل الدخول
         _isLoggedIn = true;
-        _currentUser = _mapFirebaseUserToUserModel(user);
-        await _saveUserLocally();
+        await _loadUserFromFirestore(user.uid);
       } else {
         // لا يوجد مستخدم
         _isLoggedIn = false;
@@ -50,6 +51,99 @@ class SimpleAuthProvider with ChangeNotifier {
   void _setError(String? error) {
     _errorMessage = error;
     notifyListeners();
+  }
+
+  // تحميل بيانات المستخدم من Firestore
+  Future<void> _loadUserFromFirestore(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        // تحقق من أن البيانات صحيحة قبل التحويل
+        if (data is Map<String, dynamic>) {
+          try {
+            _currentUser = UserModel.fromJson({
+              'id': doc.id,
+              ...data,
+            });
+          } catch (parseError) {
+            if (kDebugMode) {
+              print('خطأ في تحليل بيانات المستخدم: $parseError');
+            }
+            // في حالة فشل التحليل، استخدم بيانات Firebase Auth
+            final firebaseUser = _auth.currentUser;
+            if (firebaseUser != null) {
+              _currentUser = _mapFirebaseUserToUserModel(firebaseUser);
+            }
+          }
+        } else {
+          if (kDebugMode) {
+            print('بيانات المستخدم ليست من النوع المتوقع: ${data.runtimeType}');
+          }
+          // استخدم بيانات Firebase Auth
+          final firebaseUser = _auth.currentUser;
+          if (firebaseUser != null) {
+            _currentUser = _mapFirebaseUserToUserModel(firebaseUser);
+          }
+        }
+      } else {
+        // إذا لم تكن البيانات موجودة في Firestore، قم بإنشائها
+        final firebaseUser = _auth.currentUser;
+        if (firebaseUser != null) {
+          _currentUser = _mapFirebaseUserToUserModel(firebaseUser);
+          try {
+            await _saveUserToFirestore(_currentUser!);
+          } catch (saveError) {
+            if (kDebugMode) {
+              print('تحذير: فشل في حفظ البيانات في Firestore: $saveError');
+            }
+            // لا نوقف العملية إذا فشل الحفظ
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('خطأ في تحميل بيانات المستخدم من Firestore: $e');
+      }
+      // في حالة الخطأ، استخدم بيانات Firebase Auth
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser != null) {
+        _currentUser = _mapFirebaseUserToUserModel(firebaseUser);
+      }
+    }
+  }
+
+  // حفظ بيانات المستخدم في Firestore
+  Future<void> _saveUserToFirestore(UserModel user) async {
+    try {
+      final userData = user.toJson();
+      // تحقق من أن البيانات صحيحة قبل الحفظ
+      if (userData is Map<String, dynamic>) {
+        await _firestore.collection('users').doc(user.id).set(userData);
+      } else {
+        if (kDebugMode) {
+          print('تحذير: بيانات المستخدم ليست من النوع المتوقع للحفظ: ${userData.runtimeType}');
+        }
+        // لا نوقف العملية، فقط نسجل التحذير
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('خطأ في حفظ بيانات المستخدم في Firestore: $e');
+      }
+      // لا نوقف العملية، فقط نسجل الخطأ
+    }
+  }
+
+  // تحديث بيانات المستخدم في Firestore
+  Future<void> updateUserData(UserModel user) async {
+    try {
+      await _firestore.collection('users').doc(user.id).update(user.toJson());
+      _currentUser = user;
+      await _saveUserLocally();
+      notifyListeners();
+    } catch (e) {
+      _setError('فشل في تحديث البيانات: ${e.toString()}');
+    }
   }
 
   // تسجيل الدخول بالبريد/كلمة المرور
@@ -73,16 +167,45 @@ class SimpleAuthProvider with ChangeNotifier {
         return false;
       }
 
-      _currentUser = _mapFirebaseUserToUserModel(user);
+      try {
+        // تحميل بيانات المستخدم من Firestore
+        await _loadUserFromFirestore(user.uid);
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في تحميل البيانات من Firestore: $e');
+        }
+        // في حالة الفشل، استخدم بيانات Firebase Auth الأساسية
+        try {
+          _currentUser = _mapFirebaseUserToUserModel(user);
+        } catch (mapError) {
+          if (kDebugMode) {
+            print('خطأ في تحويل بيانات المستخدم: $mapError');
+          }
+          _setError('خطأ في تحميل بيانات المستخدم');
+          return false;
+        }
+      }
+      
       _isLoggedIn = true;
+      
       if (rememberMe) {
-        await _saveUserLocally();
+        try {
+          await _saveUserLocally();
+        } catch (e) {
+          if (kDebugMode) {
+            print('تحذير: فشل في حفظ البيانات محلياً: $e');
+          }
+          // لا نوقف العملية إذا فشل حفظ البيانات محلياً
+        }
       }
       return true;
     } on fb.FirebaseAuthException catch (e) {
       _setError(_firebaseErrorToArabic(e));
       return false;
     } catch (e) {
+      if (kDebugMode) {
+        print('خطأ غير متوقع في تسجيل الدخول: $e');
+      }
       _setError('حدث خطأ غير متوقع: ${e.toString()}');
       return false;
     } finally {
@@ -106,26 +229,70 @@ class SimpleAuthProvider with ChangeNotifier {
         password: password,
       );
 
-      // تحديث اسم العرض
-      await cred.user?.updateDisplayName(name);
-      await cred.user?.reload();
-
-      final user = _auth.currentUser;
+      final user = cred.user;
       if (user == null) {
         _setError('فشل إنشاء الحساب');
         return false;
       }
 
-      _currentUser = _mapFirebaseUserToUserModel(user).copyWith(
-        phone: phone,
-      );
+      try {
+        // تحديث اسم العرض في Firebase Auth
+        await user.updateDisplayName(name);
+        await user.reload();
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في تحديث اسم العرض: $e');
+        }
+        // لا نوقف العملية إذا فشل تحديث اسم العرض
+      }
+
+      // إنشاء نموذج المستخدم
+      try {
+        _currentUser = UserModel(
+          id: user.uid,
+          name: name,
+          email: email,
+          phone: phone,
+          profileImageUrl: user.photoURL ?? '',
+          token: '',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('خطأ في إنشاء نموذج المستخدم: $e');
+        }
+        _setError('خطأ في إنشاء بيانات المستخدم');
+        return false;
+      }
+
+      try {
+        // حفظ بيانات المستخدم في Firestore
+        await _saveUserToFirestore(_currentUser!);
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في حفظ البيانات في Firestore: $e');
+        }
+        // لا نوقف العملية إذا فشل حفظ البيانات في Firestore
+      }
+      
       _isLoggedIn = true;
-      await _saveUserLocally();
+      try {
+        await _saveUserLocally();
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في حفظ البيانات محلياً: $e');
+        }
+        // لا نوقف العملية إذا فشل حفظ البيانات محلياً
+      }
       return true;
     } on fb.FirebaseAuthException catch (e) {
       _setError(_firebaseErrorToArabic(e));
       return false;
     } catch (e) {
+      if (kDebugMode) {
+        print('خطأ غير متوقع في إنشاء الحساب: $e');
+      }
       _setError('حدث خطأ في إنشاء الحساب: ${e.toString()}');
       return false;
     } finally {
@@ -137,7 +304,7 @@ class SimpleAuthProvider with ChangeNotifier {
   Future<bool> loginWithGoogle() async {
     try {
       _setLoading(true);
-      _setError('خدمة Google Sign In غير مفعلة بعد.');
+      _setError('خدمة Google Sign In غير مفعلة بعد. سيتم إضافتها قريباً.');
       return false;
     } finally {
       _setLoading(false);
@@ -218,17 +385,39 @@ class SimpleAuthProvider with ChangeNotifier {
            password.contains(RegExp(r'[0-9]'));
   }
 
+  // تحقق من صحة رقم الهاتف
+  bool isPhoneValid(String phone) {
+    return RegExp(r'^[0-9]{10,15}$').hasMatch(phone.replaceAll(RegExp(r'[^\d]'), ''));
+  }
+
   UserModel _mapFirebaseUserToUserModel(fb.User user) {
-    return UserModel(
-      id: user.uid,
-      name: user.displayName ?? '',
-      email: user.email ?? '',
-      phone: user.phoneNumber ?? '',
-      profileImageUrl: user.photoURL ?? '',
-      token: '',
-      createdAt: user.metadata.creationTime ?? DateTime.now(),
-      updatedAt: user.metadata.lastSignInTime ?? DateTime.now(),
-    );
+    try {
+      return UserModel(
+        id: user.uid,
+        name: user.displayName ?? '',
+        email: user.email ?? '',
+        phone: user.phoneNumber ?? '',
+        profileImageUrl: user.photoURL ?? '',
+        token: '',
+        createdAt: user.metadata.creationTime ?? DateTime.now(),
+        updatedAt: user.metadata.lastSignInTime ?? DateTime.now(),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('خطأ في تحويل بيانات Firebase User: $e');
+      }
+      // إرجاع نموذج افتراضي في حالة الخطأ
+      return UserModel(
+        id: user.uid,
+        name: user.displayName ?? 'مستخدم',
+        email: user.email ?? '',
+        phone: user.phoneNumber ?? '',
+        profileImageUrl: user.photoURL ?? '',
+        token: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
   }
 
   String _firebaseErrorToArabic(fb.FirebaseAuthException e) {
@@ -244,11 +433,66 @@ class SimpleAuthProvider with ChangeNotifier {
       case 'email-already-in-use':
         return 'البريد الإلكتروني مستخدم بالفعل';
       case 'weak-password':
-        return 'كلمة المرور ضعيفة';
+        return 'كلمة المرور ضعيفة جداً. يجب أن تكون 6 أحرف على الأقل';
       case 'operation-not-allowed':
         return 'العملية غير مسموح بها';
+      case 'too-many-requests':
+        return 'تم تجاوز الحد الأقصى للمحاولات. حاول مرة أخرى لاحقاً';
+      case 'network-request-failed':
+        return 'فشل في الاتصال بالشبكة. تحقق من اتصالك بالإنترنت';
+      case 'invalid-verification-code':
+        return 'رمز التحقق غير صحيح';
+      case 'invalid-verification-id':
+        return 'معرف التحقق غير صحيح';
+      case 'quota-exceeded':
+        return 'تم تجاوز الحد المسموح. حاول مرة أخرى لاحقاً';
       default:
         return 'خطأ في المصادقة: ${e.message ?? e.code}';
+    }
+  }
+
+  // تحقق من وجود المستخدم في Firestore
+  Future<bool> userExistsInFirestore(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      return doc.exists;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // حذف حساب المستخدم
+  Future<bool> deleteAccount() async {
+    try {
+      _setLoading(true);
+      _setError(null);
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        _setError('لا يوجد مستخدم مسجل');
+        return false;
+      }
+
+      // حذف البيانات من Firestore
+      await _firestore.collection('users').doc(user.uid).delete();
+      
+      // حذف الحساب من Firebase Auth
+      await user.delete();
+      
+      // مسح البيانات المحلية
+      await _clearUserData();
+      _currentUser = null;
+      _isLoggedIn = false;
+      
+      return true;
+    } on fb.FirebaseAuthException catch (e) {
+      _setError(_firebaseErrorToArabic(e));
+      return false;
+    } catch (e) {
+      _setError('فشل في حذف الحساب: ${e.toString()}');
+      return false;
+    } finally {
+      _setLoading(false);
     }
   }
 } 
