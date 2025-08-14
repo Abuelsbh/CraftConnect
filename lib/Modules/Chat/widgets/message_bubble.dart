@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../Models/chat_model.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -187,54 +188,169 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildLocationMessage(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(8.w),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8.r),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.location_on_rounded,
-            color: Theme.of(context).colorScheme.primary,
-            size: 20.w,
+    return GestureDetector(
+      onTap: () => _openLocationInMaps(context),
+      child: Container(
+        width: 250.w,
+        padding: EdgeInsets.all(8.w),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
           ),
-          SizedBox(width: 8.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'الموقع',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                if (message.locationData?.address != null) ...[
-                  SizedBox(height: 4.h),
-                  Text(
-                    message.locationData!.address!,
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      color: Theme.of(context).colorScheme.outline,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // صورة مصغرة للخريطة
+            Container(
+              width: double.infinity,
+              height: 120.h,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              child: Stack(
+                children: [
+                  // خلفية الخريطة
+                  Container(
+                    width: double.infinity,
+                    height: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8.r),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    child: Icon(
+                      Icons.map_rounded,
+                      size: 40.w,
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  // أيقونة الموقع
+                  Positioned(
+                    top: 8.h,
+                    left: 8.w,
+                    child: Container(
+                      padding: EdgeInsets.all(4.w),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.location_on_rounded,
+                        color: Colors.white,
+                        size: 16.w,
+                      ),
+                    ),
                   ),
                 ],
+              ),
+            ),
+            SizedBox(height: 8.h),
+            // معلومات الموقع
+            Row(
+              children: [
+                Icon(
+                  Icons.location_on_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 16.w,
+                ),
+                SizedBox(width: 4.w),
+                Expanded(
+                  child: Text(
+                    'الموقع',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.open_in_new_rounded,
+                  color: Theme.of(context).colorScheme.outline,
+                  size: 16.w,
+                ),
               ],
             ),
-          ),
-        ],
+            if (message.locationData?.address != null) ...[
+              SizedBox(height: 4.h),
+              Text(
+                message.locationData!.address!,
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            SizedBox(height: 4.h),
+            Text(
+              'اضغط لفتح في الخرائط',
+              style: TextStyle(
+                fontSize: 10.sp,
+                color: Theme.of(context).colorScheme.primary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _openLocationInMaps(BuildContext context) async {
+    if (message.locationData == null) return;
+    
+    final latitude = message.locationData!.latitude;
+    final longitude = message.locationData!.longitude;
+    
+    // إنشاء رابط جوجل ماب
+    final url = 'https://www.google.com/maps?q=$latitude,$longitude';
+    
+    try {
+      print('📍 فتح الموقع في الخرائط: $url');
+      
+      // محاولة فتح الرابط
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        
+        // عرض رسالة نجاح
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم فتح الموقع في الخرائط'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        throw Exception('لا يمكن فتح الرابط');
+      }
+    } catch (e) {
+      print('❌ خطأ في فتح الخرائط: $e');
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('فشل في فتح الخرائط: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildVoiceMessage(BuildContext context) {

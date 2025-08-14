@@ -1,0 +1,30 @@
+{
+  "name": "firebase-data-importer",
+  "version": "1.0.0",
+  "description": "سكريبت لإضافة بيانات الحرفيين والتقييمات إلى Firebase",
+  "main": "import_script.js",
+  "scripts": {
+    "add": "node import_script.js add",
+    "artisans": "node import_script.js artisans",
+    "reviews": "node import_script.js reviews",
+    "delete": "node import_script.js delete",
+    "show": "node import_script.js show",
+    "help": "node import_script.js"
+  },
+  "keywords": [
+    "firebase",
+    "firestore",
+    "artisans",
+    "reviews",
+    "data-import"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "firebase-admin": "^11.11.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+} 

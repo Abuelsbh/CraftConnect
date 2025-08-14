@@ -195,123 +195,31 @@ class AppProvider with ChangeNotifier {
   }
 
   Future<void> _loadCrafts() async {
-    // محاكاة تحميل الحرف من Firebase
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    _crafts = [
-      CraftModel(
-        id: 'carpenter',
-        name: 'نجار',
-        nameKey: 'carpenter',
-        iconPath: 'assets/icons/carpenter.svg',
-        description: 'صناعة وإصلاح الأثاث الخشبي',
-        artisanCount: 45,
-        category: 'construction',
-        averageRating: 4.8,
-      ),
-      CraftModel(
-        id: 'electrician',
-        name: 'كهربائي',
-        nameKey: 'electrician',
-        iconPath: 'assets/icons/electrician.svg',
-        description: 'تركيب وصيانة الأنظمة الكهربائية',
-        artisanCount: 38,
-        category: 'maintenance',
-        averageRating: 4.7,
-      ),
-      CraftModel(
-        id: 'plumber',
-        name: 'سباك',
-        nameKey: 'plumber',
-        iconPath: 'assets/icons/plumber.svg',
-        description: 'تركيب وصيانة أنظمة السباكة',
-        artisanCount: 32,
-        category: 'maintenance',
-        averageRating: 4.6,
-      ),
-      CraftModel(
-        id: 'painter',
-        name: 'رسام',
-        nameKey: 'painter',
-        iconPath: 'assets/icons/painter.svg',
-        description: 'طلاء وديكور المنازل والمباني',
-        artisanCount: 28,
-        category: 'decoration',
-        averageRating: 4.5,
-      ),
-      CraftModel(
-        id: 'mechanic',
-        name: 'ميكانيكي',
-        nameKey: 'mechanic',
-        iconPath: 'assets/icons/mechanic.svg',
-        description: 'إصلاح وصيانة السيارات',
-        artisanCount: 41,
-        category: 'automotive',
-        averageRating: 4.9,
-      ),
-    ];
+    // تحميل الحرف من Firebase
+    try {
+      // يمكن إضافة خدمة للحرف هنا
+      // final craftService = CraftService();
+      // _crafts = await craftService.getAllCrafts();
+      
+      // في الوقت الحالي، سنترك القائمة فارغة
+      _crafts = [];
+    } catch (e) {
+      _errorMessage = 'فشل في تحميل الحرف: $e';
+    }
   }
 
   Future<void> _loadArtisans() async {
-    // محاكاة تحميل الحرفيين من Firebase
-    await Future.delayed(const Duration(milliseconds: 800));
-    
-    _artisans = [
-      ArtisanModel(
-        id: '1',
-        name: 'محمد أحمد السعيد',
-        email: 'mohamed.ahmed@example.com',
-        phone: '+966501234567',
-        profileImageUrl: '',
-        craftType: 'carpenter',
-        yearsOfExperience: 12,
-        description: 'نجار محترف متخصص في صناعة الأثاث المنزلي والمكتبي بأعلى معايير الجودة',
-        latitude: 24.7136,
-        longitude: 46.6753,
-        address: 'الرياض، المملكة العربية السعودية',
-        rating: 4.8,
-        reviewCount: 156,
-        galleryImages: [],
-        createdAt: DateTime.now().subtract(const Duration(days: 1095)),
-        updatedAt: DateTime.now(),
-      ),
-      ArtisanModel(
-        id: '2',
-        name: 'سعد محمد العتيبي',
-        email: 'saad.mohamed@example.com',
-        phone: '+966509876543',
-        profileImageUrl: '',
-        craftType: 'electrician',
-        yearsOfExperience: 8,
-        description: 'كهربائي معتمد لجميع أنواع التمديدات والصيانة الكهربائية',
-        latitude: 24.7200,
-        longitude: 46.6800,
-        address: 'الرياض، المملكة العربية السعودية',
-        rating: 4.9,
-        reviewCount: 203,
-        galleryImages: [],
-        createdAt: DateTime.now().subtract(const Duration(days: 800)),
-        updatedAt: DateTime.now(),
-      ),
-      ArtisanModel(
-        id: '3',
-        name: 'عبدالله سالم',
-        email: 'abdullah.salem@example.com',
-        phone: '+966555123456',
-        profileImageUrl: '',
-        craftType: 'plumber',
-        yearsOfExperience: 6,
-        description: 'سباك ماهر في تركيب وصيانة جميع أنواع السباكة',
-        latitude: 24.7100,
-        longitude: 46.6700,
-        address: 'الرياض، المملكة العربية السعودية',
-        rating: 4.6,
-        reviewCount: 89,
-        galleryImages: [],
-        createdAt: DateTime.now().subtract(const Duration(days: 400)),
-        updatedAt: DateTime.now(),
-      ),
-    ];
+    // تحميل الحرفيين من Firebase
+    try {
+      // يمكن إضافة خدمة للحرفيين هنا
+      // final artisanService = ArtisanService();
+      // _artisans = await artisanService.getAllArtisans();
+      
+      // في الوقت الحالي، سنترك القائمة فارغة
+      _artisans = [];
+    } catch (e) {
+      _errorMessage = 'فشل في تحميل الحرفيين: $e';
+    }
   }
 
   Future<void> _getCurrentLocation() async {

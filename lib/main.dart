@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:rush/rush.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'firebase_options.dart';
 
@@ -21,6 +22,7 @@ import 'core/Theme/theme_provider.dart';
 import 'providers/app_provider.dart';
 import 'providers/simple_auth_provider.dart';
 import 'providers/chat_provider.dart';
+import 'providers/artisan_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,8 +56,12 @@ Future<void> main() async {
     } else {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     }
+    
+    // تهيئة Firebase Storage
+    FirebaseStorage.instance;
+    debugPrint('✅ تم تهيئة Firebase Storage بنجاح');
   } catch (e) {
-    debugPrint('خطأ في تهيئة Firebase: $e');
+    debugPrint('❌ خطأ في تهيئة Firebase: $e');
   }
 
   RushSetup.init(
@@ -83,6 +89,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<AppProvider>(create: (_) => AppProvider()),
         ChangeNotifierProvider<SimpleAuthProvider>(create: (_) => SimpleAuthProvider()),
         ChangeNotifierProvider<ChatProvider>(create: (_) => ChatProvider()),
+        ChangeNotifierProvider<ArtisanProvider>(create: (_) => ArtisanProvider()),
         ChangeNotifierProvider<ThemeProvider>(
           create: (_) {
             final provider = ThemeProvider();

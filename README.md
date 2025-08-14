@@ -97,15 +97,15 @@ lib/
 ### خطوات التثبيت
 
 1. **استنساخ المشروع**
-```bash
-git clone <repository-url>
-cd template_2025-main
-```
+   ```bash
+   git clone <repository-url>
+   cd template_2025-main
+   ```
 
 2. **تثبيت التبعيات**
-```bash
-flutter pub get
-```
+   ```bash
+   flutter pub get
+   ```
 
 3. **إعداد Firebase**
    - إنشاء مشروع Firebase جديد
@@ -120,9 +120,9 @@ flutter pub get
    - تفعيل المصادقة
 
 5. **تشغيل التطبيق**
-```bash
-flutter run
-```
+   ```bash
+   flutter run
+   ```
 
 ## 🔧 التكوين
 

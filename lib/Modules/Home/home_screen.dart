@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:template_2025/Modules/Maps/complete_maps_page.dart';
 import '../../Utilities/app_constants.dart';
 import '../../Utilities/performance_helper.dart';
 import '../../core/Language/locales.dart';
 import '../../models/craft_model.dart';
+import '../../providers/artisan_provider.dart';
 import '../Chat/chat_page.dart';
 import '../Maps/optimized_maps_page.dart';
+import '../../providers/simple_auth_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,99 +34,184 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _bottomNavAnimationController;
   late Animation<double> _bottomNavAnimation;
 
-  // Sample data
-  final List<CraftCategory> _craftCategories = [
-    const CraftCategory(
-      id: 'all',
-      nameKey: 'all_crafts',
-      icon: Icons.apps_rounded,
-      count: 45,
-    ),
-    ...AppConstants.craftTypes.map((craft) => CraftCategory(
-          id: craft,
-          nameKey: craft,
-          icon: _getCraftIcon(craft),
-          count: (15 + craft.length) % 12 + 3,
-        )),
-  ];
+  // متغيرات جديدة للحرفيين الحقيقيين
+  List<CraftModel> _realCrafts = [];
+  bool _isLoadingCrafts = true;
+  List<CraftCategory> _realCraftCategories = [];
 
-  final List<CraftModel> _sampleCrafts = [
-    const CraftModel(
-      id: 'carpenter',
-      name: 'Carpenter',
-      nameKey: 'carpenter',
-      iconPath: '',
-      description: 'Wood working and furniture crafting',
-      artisanCount: 24,
-      category: 'construction',
-      averageRating: 4.8,
-    ),
-    const CraftModel(
-      id: 'electrician',
-      name: 'Electrician',
-      nameKey: 'electrician',
-      iconPath: '',
-      description: 'Electrical installations and repairs',
-      artisanCount: 18,
-      category: 'utilities',
-      averageRating: 4.7,
-    ),
-    const CraftModel(
-      id: 'plumber',
-      name: 'Plumber',
-      nameKey: 'plumber',
-      iconPath: '',
-      description: 'Plumbing services and maintenance',
-      artisanCount: 15,
-      category: 'utilities',
-      averageRating: 4.6,
-    ),
-    const CraftModel(
-      id: 'painter',
-      name: 'Painter',
-      nameKey: 'painter',
-      iconPath: '',
-      description: 'Interior and exterior painting',
-      artisanCount: 21,
-      category: 'decoration',
-      averageRating: 4.5,
-    ),
-    const CraftModel(
-      id: 'mechanic',
-      name: 'Mechanic',
-      nameKey: 'mechanic',
-      iconPath: '',
-      description: 'Automotive repair and maintenance',
-      artisanCount: 12,
-      category: 'automotive',
-      averageRating: 4.9,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _initializeAnimations();
+    _loadRealArtisans();
+  }
+
+  void _initializeAnimations() {
+    _bottomNavAnimationController = AnimationController(
+      duration: AppConstants.animationDuration,
+      vsync: this,
+    );
+    
+    _bottomNavAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _bottomNavAnimationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  Future<void> _loadRealArtisans() async {
+    try {
+      setState(() {
+        _isLoadingCrafts = true;
+      });
+
+      final artisanProvider = Provider.of<ArtisanProvider>(context, listen: false);
+      await artisanProvider.loadAllArtisans();
+
+      // تحويل بيانات الحرفيين الحقيقيين إلى CraftModel
+      final craftsMap = <String, List<dynamic>>{};
+      
+      for (final artisan in artisanProvider.artisans) {
+        if (!craftsMap.containsKey(artisan.craftType)) {
+          craftsMap[artisan.craftType] = [];
+        }
+        craftsMap[artisan.craftType]!.add(artisan);
+      }
+
+      _realCrafts = craftsMap.entries.map((entry) {
+        final artisans = entry.value as List;
+        final averageRating = artisans.fold<double>(
+          0.0, 
+          (sum, artisan) => sum + (artisan.rating ?? 0.0)
+        ) / artisans.length;
+
+        return CraftModel(
+          id: entry.key,
+          name: _getCraftName(entry.key),
+          nameKey: entry.key,
+          iconPath: '',
+          description: _getCraftDescription(entry.key),
+          artisanCount: artisans.length,
+          category: _getCraftCategory(entry.key),
+          averageRating: averageRating.isNaN ? 0.0 : averageRating,
+        );
+      }).toList();
+
+      // إنشاء فئات الحرف الحقيقية
+      _realCraftCategories = [
+        CraftCategory(
+          id: 'all',
+          nameKey: 'all_crafts',
+          icon: Icons.apps_rounded,
+          count: artisanProvider.artisans.length,
+        ),
+        ...craftsMap.entries.map((entry) {
+          final artisans = entry.value as List;
+          return CraftCategory(
+            id: entry.key,
+            nameKey: entry.key,
+            icon: _getCraftIcon(entry.key),
+            count: artisans.length,
+          );
+        }).toList(),
+      ];
+
+      setState(() {
+        _isLoadingCrafts = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingCrafts = false;
+      });
+      // في حالة الخطأ، استخدم قائمة فارغة
+      _realCrafts = [];
+      _realCraftCategories = [
+        const CraftCategory(
+          id: 'all',
+          nameKey: 'all_crafts',
+          icon: Icons.apps_rounded,
+          count: 0,
+        ),
+      ];
+    }
+  }
+
+  String _getCraftName(String craftType) {
+    switch (craftType) {
+      case 'carpenter':
+        return 'نجار';
+      case 'electrician':
+        return 'كهربائي';
+      case 'plumber':
+        return 'سباك';
+      case 'painter':
+        return 'صباغ';
+      case 'mechanic':
+        return 'ميكانيكي';
+      default:
+        return craftType;
+    }
+  }
+
+  String _getCraftDescription(String craftType) {
+    switch (craftType) {
+      case 'carpenter':
+        return 'أعمال النجارة وتفصيل الأثاث';
+      case 'electrician':
+        return 'تركيب وصيانة الأنظمة الكهربائية';
+      case 'plumber':
+        return 'خدمات السباكة والصيانة';
+      case 'painter':
+        return 'الدهانات الداخلية والخارجية';
+      case 'mechanic':
+        return 'إصلاح وصيانة السيارات';
+      default:
+        return 'خدمات متنوعة';
+    }
+  }
+
+  String _getCraftCategory(String craftType) {
+    switch (craftType) {
+      case 'carpenter':
+        return 'construction';
+      case 'electrician':
+      case 'plumber':
+        return 'utilities';
+      case 'painter':
+        return 'decoration';
+      case 'mechanic':
+        return 'automotive';
+      default:
+        return 'general';
+    }
+  }
 
   static IconData _getCraftIcon(String craft) {
     switch (craft) {
       case 'carpenter':
-        return Icons.handyman; // أيقونة أوضح للنجار
+        return Icons.handyman;
       case 'electrician':
-        return Icons.electrical_services; // كهربائي
+        return Icons.electrical_services;
       case 'plumber':
-        return Icons.plumbing; // سباك
+        return Icons.plumbing;
       case 'painter':
-        return Icons.brush; // صباغ
+        return Icons.brush;
       case 'mechanic':
-        return Icons.build_circle; // ميكانيكي
+        return Icons.build_circle;
       case 'tailor':
-        return Icons.design_services; // خياط
+        return Icons.design_services;
       case 'blacksmith':
-        return Icons.hardware; // حداد
+        return Icons.hardware;
       case 'welder':
-        return Icons.precision_manufacturing; // لحام
+        return Icons.precision_manufacturing;
       case 'mason':
-        return Icons.architecture; // بناء
+        return Icons.architecture;
       case 'gardener':
-        return Icons.eco; // بستاني
+        return Icons.eco;
       default:
-        return Icons.construction; // افتراضي
+        return Icons.construction;
     }
   }
 
@@ -141,30 +229,6 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _selectedCategoryIndex = index;
     });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeAnimations();
-    PerformanceHelper.optimizeMemory();
-  }
-
-  void _initializeAnimations() {
-    _bottomNavAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _bottomNavAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _bottomNavAnimationController,
-      curve: Curves.easeOutQuart,
-    ));
-
-    _bottomNavAnimationController.forward();
   }
 
   @override
@@ -439,10 +503,10 @@ class _HomeScreenState extends State<HomeScreen>
                   scrollDirection: Axis.horizontal,
                   physics: PerformanceHelper.optimizedScrollPhysics,
                   padding: EdgeInsets.symmetric(horizontal: 16.w),
-                  itemCount: _craftCategories.length,
+                  itemCount: _realCraftCategories.length,
                   cacheExtent: PerformanceHelper.defaultCacheExtent.toDouble(),
                   itemBuilder: (context, index) {
-                    final category = _craftCategories[index];
+                    final category = _realCraftCategories[index];
                     final isSelected = _selectedCategoryIndex == index;
                     
                     return TweenAnimationBuilder<double>(
@@ -562,9 +626,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildSliverCraftsList() {
     final filteredCrafts = _selectedCategoryIndex == 0 
-        ? _sampleCrafts 
-        : _sampleCrafts.where((craft) => 
-            craft.id == _craftCategories[_selectedCategoryIndex].id).toList();
+        ? _realCrafts 
+        : _realCrafts.where((craft) => 
+            craft.id == _realCraftCategories[_selectedCategoryIndex].id).toList();
 
     return SliverGrid(
       delegate: SliverChildBuilderDelegate(
@@ -753,20 +817,32 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       actions: [
         IconButton(
-          onPressed: () {},
+          onPressed: () {
+            context.push('/artisan-registration');
+          },
           icon: Icon(
-            Icons.search_rounded,
-            color: Theme.of(context).colorScheme.onSurface,
+            Icons.person_add_rounded,
+            color: Theme.of(context).colorScheme.primary,
           ),
+          tooltip: AppLocalizations.of(context)?.translate('register_as_artisan') ?? 'تسجيل كحرفي',
         ),
-        IconButton(
-          onPressed: () {},
-          icon: Icon(
-            Icons.notifications_outlined,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
+        Consumer<SimpleAuthProvider>(
+          builder: (context, authProvider, child) {
+            if (authProvider.currentUser?.userType == 'artisan') {
+              return IconButton(
+                onPressed: () {
+                  context.push('/artisan-profile');
+                },
+                icon: Icon(
+                  Icons.person_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                tooltip: AppLocalizations.of(context)?.translate('artisan_profile') ?? 'الملف الشخصي',
+              );
+            }
+            return SizedBox.shrink();
+          },
         ),
-        SizedBox(width: 8.w),
       ],
     );
   }
@@ -777,7 +853,7 @@ class _HomeScreenState extends State<HomeScreen>
       padding: EdgeInsets.symmetric(vertical: AppConstants.smallPadding),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: _craftCategories.length,
+        itemCount: _realCraftCategories.length,
         padding: EdgeInsets.symmetric(horizontal: AppConstants.padding),
         itemBuilder: (context, index) {
           return AnimationConfiguration.staggeredList(
@@ -788,7 +864,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: FadeInAnimation(
                 child: Padding(
                   padding: EdgeInsets.only(right: AppConstants.smallPadding),
-                  child: _buildCategoryCardOld(_craftCategories[index], index),
+                  child: _buildCategoryCardOld(_realCraftCategories[index], index),
                 ),
               ),
             ),
@@ -874,7 +950,7 @@ class _HomeScreenState extends State<HomeScreen>
               Text(
                 _selectedCategoryIndex == 0
                     ? AppLocalizations.of(context)?.translate('all_crafts') ?? ''
-                    : AppLocalizations.of(context)?.translate(_craftCategories[_selectedCategoryIndex].nameKey) ?? '',
+                    : AppLocalizations.of(context)?.translate(_realCraftCategories[_selectedCategoryIndex].nameKey) ?? '',
                 style: TextStyle(
                   fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
@@ -896,7 +972,7 @@ class _HomeScreenState extends State<HomeScreen>
           Expanded(
             child: AnimationLimiter(
               child: ListView.builder(
-                itemCount: _sampleCrafts.length,
+                itemCount: _realCrafts.length,
                 itemBuilder: (context, index) {
                   return AnimationConfiguration.staggeredList(
                     position: index,
@@ -906,7 +982,7 @@ class _HomeScreenState extends State<HomeScreen>
                       child: FadeInAnimation(
                         child: Padding(
                           padding: EdgeInsets.only(bottom: AppConstants.smallPadding),
-                          child: _buildCraftCard(_sampleCrafts[index]),
+                          child: _buildCraftCard(_realCrafts[index]),
                         ),
                       ),
                     ),
@@ -986,6 +1062,27 @@ class _HomeScreenState extends State<HomeScreen>
                             fontSize: 12.sp,
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Spacer(),
+                        ElevatedButton(
+                          onPressed: () {
+                            context.push('/artisan-list/${craft.id}/${AppLocalizations.of(context)?.translate(craft.nameKey) ?? craft.name}');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                          ),
+                          child: Text(
+                            AppLocalizations.of(context)?.translate('view_artisans') ?? 'عرض الحرفيين',
+                            style: TextStyle(
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -1126,6 +1223,116 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCraftsSection() {
+    final crafts = _isLoadingCrafts
+        ? _realCrafts
+        : _realCrafts.where((craft) =>
+            _selectedCategoryIndex == 0 || 
+            craft.id == _realCraftCategories[_selectedCategoryIndex].id
+          ).toList();
+
+    if (crafts.isEmpty && !_isLoadingCrafts) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.people_outline,
+              size: 64.w,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              AppLocalizations.of(context)?.translate('no_artisans_found') ?? 'لم يتم العثور على حرفيين',
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'لا يوجد حرفيين مسجلين في هذه الفئة حالياً',
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppConstants.padding),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                AppLocalizations.of(context)?.translate('craft_categories') ?? 'فئات الحرف',
+                style: TextStyle(
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  context.push('/search');
+                },
+                child: Text(
+                  AppLocalizations.of(context)?.translate('view_all') ?? 'عرض الكل',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 16.h),
+        if (_isLoadingCrafts)
+          Center(
+            child: Padding(
+              padding: EdgeInsets.all(32.h),
+              child: CircularProgressIndicator(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          )
+        else
+          Container(
+            height: 200.h,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(horizontal: AppConstants.padding),
+              itemCount: crafts.length,
+              itemBuilder: (context, index) {
+                return AnimationConfiguration.staggeredList(
+                  position: index,
+                  duration: const Duration(milliseconds: 375),
+                  child: SlideAnimation(
+                    horizontalOffset: 50.0,
+                    child: FadeInAnimation(
+                      child: Padding(
+                        padding: EdgeInsets.only(right: AppConstants.padding),
+                        child: _buildCraftCard(crafts[index]),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }

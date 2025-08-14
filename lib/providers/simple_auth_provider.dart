@@ -1,8 +1,11 @@
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../Models/user_model.dart';
 import '../Utilities/shared_preferences.dart';
+import '../providers/artisan_provider.dart';
 
 class SimpleAuthProvider with ChangeNotifier {
   UserModel? _currentUser;
@@ -219,6 +222,10 @@ class SimpleAuthProvider with ChangeNotifier {
     required String password,
     required String name,
     required String phone,
+    String userType = 'user',
+    String? craftType,
+    String? description,
+    int? yearsOfExperience,
   }) async {
     try {
       _setLoading(true);
@@ -255,6 +262,8 @@ class SimpleAuthProvider with ChangeNotifier {
           phone: phone,
           profileImageUrl: user.photoURL ?? '',
           token: '',
+          userType: userType,
+          artisanId: null, // سيتم تحديثه لاحقاً إذا كان حرفي
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
@@ -269,6 +278,35 @@ class SimpleAuthProvider with ChangeNotifier {
       try {
         // حفظ بيانات المستخدم في Firestore
         await _saveUserToFirestore(_currentUser!);
+        
+        // إذا كان المستخدم حرفي، قم بتسجيله كحرفي
+        if (userType == 'artisan' && craftType != null && description != null && yearsOfExperience != null) {
+          try {
+            // إنشاء مزود الحرفيين مؤقتاً
+            final artisanProvider = ArtisanProvider();
+            final success = await artisanProvider.registerArtisan(
+              name: name,
+              email: email,
+              phone: phone,
+              craftType: craftType,
+              yearsOfExperience: yearsOfExperience,
+              description: description,
+            );
+            
+            if (success && artisanProvider.currentArtisan != null) {
+              // تحديث معرف الحرفي في بيانات المستخدم
+              _currentUser = _currentUser!.copyWith(
+                artisanId: artisanProvider.currentArtisan!.id,
+              );
+              await _saveUserToFirestore(_currentUser!);
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('تحذير: فشل في تسجيل الحرفي: $e');
+            }
+            // لا نوقف العملية إذا فشل تسجيل الحرفي
+          }
+        }
       } catch (e) {
         if (kDebugMode) {
           print('تحذير: فشل في حفظ البيانات في Firestore: $e');

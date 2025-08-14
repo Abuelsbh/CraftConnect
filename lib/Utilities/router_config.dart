@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../Modules/ArtisanProfile/ArtisanProfileScreen.dart';
+
+
+import '../Modules/Review/add_review_screen.dart';
+import '../Modules/ArtisanRegistration/artisan_registration_screen.dart';
 import '../Modules/Splash/splash_screen.dart';
 import '../Modules/Onboarding/onboarding_screen.dart';
 import '../Modules/Home/home_screen.dart';
 import '../Modules/CraftDetails/craft_details_screen.dart';
-import '../Modules/ArtisanProfile/artisan_profile_screen.dart';
 import '../Modules/Search/search_screen.dart';
 import '../Modules/Auth/login_screen.dart';
 import '../Modules/Auth/register_screen.dart';
@@ -66,6 +70,30 @@ class GoRouterConfig {
           return getCustomTransitionPage(
             state: state,
             child: ArtisanProfileScreen(artisanId: artisanId),
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/add-review/:artisanId',
+        pageBuilder: (_, GoRouterState state) {
+          final artisanId = state.pathParameters['artisanId']!;
+          final artisanName = state.queryParameters['name'] ?? 'الحرفي';
+          return getCustomTransitionPage(
+            state: state,
+            child: AddReviewScreen(
+              artisanId: artisanId,
+              artisanName: artisanName,
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/register-artisan',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const ArtisanRegistrationScreen(),
           );
         },
       ),

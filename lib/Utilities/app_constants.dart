@@ -3,18 +3,13 @@ class AppConstants {
   static const String appName = 'CraftConnect';
   static const String appVersion = '1.0.0';
 
-  // Craft Types
-  static const List<String> craftTypes = [
+  // Craft Types - يمكن تحميلها من Firebase
+  static const List<String> defaultCraftTypes = [
     'carpenter',
     'electrician',
     'plumber',
     'painter',
     'mechanic',
-    'tailor',
-    'blacksmith',
-    'welder',
-    'mason',
-    'gardener',
   ];
 
   // Animation Durations

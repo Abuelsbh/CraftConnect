@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
+import 'splash_data_handler.dart';
 
 class SplashScreen extends StatefulWidget {
   static const routeName = "/";
@@ -109,6 +110,9 @@ class _SplashScreenState extends State<SplashScreen>
   void _navigateAfterDelay() {
     Future.delayed(AppConstants.splashDuration, () async {
       if (mounted) {
+        // التحقق من وجود البيانات وإضافتها إذا لم تكن موجودة
+       // await _checkAndAddSampleData();
+        
         final prefs = await SharedPreferences.getInstance();
         final isFirstTime = prefs.getBool(AppConstants.isFirstTimeKey) ?? true;
         
@@ -119,6 +123,27 @@ class _SplashScreenState extends State<SplashScreen>
         }
       }
     });
+  }
+
+  // دالة للتحقق من وجود البيانات وإضافتها
+  Future<void> _checkAndAddSampleData() async {
+    try {
+      // التحقق من وجود البيانات
+      final dataExists = await SplashDataHandler.checkIfDataExists();
+
+      if (!dataExists) {
+        print('📊 البيانات غير موجودة، سيتم إضافتها...');
+
+        // إضافة البيانات إلى Firebase
+        await SplashDataHandler.addAllSampleDataToFirebase();
+
+        print('✅ تم إضافة البيانات بنجاح!');
+      } else {
+        print('✅ البيانات موجودة بالفعل');
+      }
+    } catch (e) {
+      print('❌ خطأ في التحقق من البيانات: $e');
+    }
   }
 
   @override

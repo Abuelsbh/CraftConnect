@@ -138,9 +138,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
   Widget _buildForgotPasswordForm() {
     return Form(
-      key: _formKey,
-      child: Column(
-        children: [
+          key: _formKey,
+          child: Column(
+            children: [
           Container(
             padding: EdgeInsets.all(16.w),
             decoration: BoxDecoration(
@@ -172,21 +172,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             ),
           ),
           SizedBox(height: 24.h),
-          CustomTextFieldWidget(
-            controller: _emailController,
-            hint: AppLocalizations.of(context)?.translate('enter_email') ?? 'أدخل بريدك الإلكتروني',
+              CustomTextFieldWidget(
+                controller: _emailController,
+                hint: AppLocalizations.of(context)?.translate('enter_email') ?? 'أدخل بريدك الإلكتروني',
             prefixIcon: Icon(Icons.email_outlined, color: Theme.of(context).colorScheme.outline),
-            textInputType: TextInputType.emailAddress,
-            validator: (value) {
+                textInputType: TextInputType.emailAddress,
+                validator: (value) {
               if (value?.isEmpty ?? true) {
                 return AppLocalizations.of(context)?.translate('email_required') ?? 'البريد الإلكتروني مطلوب';
               }
               if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value!)) {
                 return AppLocalizations.of(context)?.translate('invalid_email') ?? 'بريد إلكتروني غير صحيح';
               }
-              return null;
-            },
-          ),
+                  return null;
+                },
+              ),
         ],
       ),
     );
@@ -195,23 +195,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   Widget _buildResetButton() {
     return Consumer<SimpleAuthProvider>(
       builder: (context, authProvider, child) {
-        return CustomButtonWidget(
+                  return CustomButtonWidget(
           title: AppLocalizations.of(context)?.translate('send_reset_link') ?? 'إرسال رابط إعادة التعيين',
-          width: double.infinity,
-          height: 56.h,
+                    width: double.infinity,
+                    height: 56.h,
           onTap: authProvider.isLoading ? () {} : () => _handleResetPassword(authProvider),
           titleWidget: authProvider.isLoading 
-              ? SizedBox(
-                  width: 20.w,
-                  height: 20.w,
+                        ? SizedBox(
+                            width: 20.w,
+                            height: 20.w,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
-                )
-              : null,
-        );
-      },
+                          )
+                        : null,
+                  );
+                },
     );
   }
 

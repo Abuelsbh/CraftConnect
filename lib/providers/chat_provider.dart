@@ -54,6 +54,22 @@ class ChatProvider with ChangeNotifier {
     );
   }
 
+  // Get filtered chat rooms based on user type
+  List<ChatRoom> getFilteredChatRooms() {
+    if (_currentUser == null) return [];
+    
+    // إذا كان المستخدم حرفي، اعرض جميع المحادثات
+    if (_currentUser!.userType == 'artisan') {
+      return _chatRooms;
+    }
+    
+    // إذا كان المستخدم عادي، اعرض فقط المحادثات مع الحرفيين
+    return _chatRooms.where((room) {
+      // هنا يمكن إضافة منطق إضافي للفلترة إذا لزم الأمر
+      return true; // حالياً نعرض جميع المحادثات
+    }).toList();
+  }
+
   // Open chat room
   Future<void> openChatRoom(String roomId) async {
     try {

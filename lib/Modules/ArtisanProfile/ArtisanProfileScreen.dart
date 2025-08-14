@@ -232,9 +232,9 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
               ),
             ],
           ),
-          
+
           SizedBox(height: AppConstants.padding),
-          
+
           // معلومات الاتصال
           _buildContactInfo(),
         ],
@@ -387,7 +387,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
   Widget _buildActionButtons() {
     final authProvider = Provider.of<SimpleAuthProvider>(context);
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-    
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppConstants.padding),
       child: Row(
@@ -518,7 +518,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
 
   Widget _buildSkillChips() {
     final skills = ['نجارة', 'تصميم أثاث', 'تركيب', 'صيانة', 'ديكور'];
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -794,38 +794,38 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
 
   void _startChatWithArtisan(ChatProvider chatProvider) async {
     if (_artisan == null) return;
-    
+
     try {
       // إنشاء غرفة دردشة مع الحرفي والحصول عليها مباشرة
       final room = await chatProvider.createChatRoomAndReturn(_artisan!.id);
-      
+
       if (room != null) {
         // فتح غرفة الدردشة
         await chatProvider.openChatRoom(room.id);
-        
+
         if (mounted) {
           context.push('/chat-room');
         }
-              } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(AppLocalizations.of(context)?.translate('chat_creation_failed') ?? 'فشل في إنشاء المحادثة'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-          } catch (e) {
+      } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${AppLocalizations.of(context)?.translate('chat_creation_failed') ?? 'فشل في إنشاء المحادثة'}: ${e.toString()}'),
+              content: Text(AppLocalizations.of(context)?.translate('chat_creation_failed') ?? 'فشل في إنشاء المحادثة'),
               backgroundColor: Colors.red,
             ),
           );
         }
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${AppLocalizations.of(context)?.translate('chat_creation_failed') ?? 'فشل في إنشاء المحادثة'}: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showLoginDialog() {
@@ -850,4 +850,4 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
       ),
     );
   }
-} 
+}

@@ -24,6 +24,14 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   
+  // متغيرات جديدة للحرفي
+  final _descriptionController = TextEditingController();
+  String _selectedUserType = 'user'; // 'user' أو 'artisan'
+  String _selectedCraftType = 'carpenter';
+  int _yearsOfExperience = 1;
+  String? _profileImagePath;
+  List<String> _galleryImagePaths = [];
+  
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -31,6 +39,8 @@ class _RegisterScreenState extends State<RegisterScreen>
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreeToTerms = false;
+
+  final List<String> _craftTypes = AppConstants.defaultCraftTypes;
 
   @override
   void initState() {
@@ -260,8 +270,187 @@ class _RegisterScreenState extends State<RegisterScreen>
               return null;
             },
           ),
+          SizedBox(height: AppConstants.padding),
+          _buildUserTypeSelector(),
+          if (_selectedUserType == 'artisan') ...[
+            SizedBox(height: AppConstants.padding),
+            _buildArtisanFields(),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildUserTypeSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          AppLocalizations.of(context)?.translate('user_type') ?? 'نوع المستخدم',
+          style: TextStyle(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        SizedBox(height: 8.h),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _selectedUserType = 'user';
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(vertical: 12.h),
+                  foregroundColor: _selectedUserType == 'user' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                  side: BorderSide(
+                    color: _selectedUserType == 'user' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                  ),
+                ),
+                child: Text(
+                  AppLocalizations.of(context)?.translate('user') ?? 'مستخدم',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(width: 10.w),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _selectedUserType = 'artisan';
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(vertical: 12.h),
+                  foregroundColor: _selectedUserType == 'artisan' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                  side: BorderSide(
+                    color: _selectedUserType == 'artisan' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                  ),
+                ),
+                child: Text(
+                  AppLocalizations.of(context)?.translate('artisan') ?? 'حرفي',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildArtisanFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          AppLocalizations.of(context)?.translate('craft_type') ?? 'نوع الحرفة',
+          style: TextStyle(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        SizedBox(height: 8.h),
+        DropdownButtonFormField<String>(
+          value: _selectedCraftType,
+          decoration: InputDecoration(
+            hintText: AppLocalizations.of(context)?.translate('select_craft_type') ?? 'اختر نوع الحرفة',
+            prefixIcon: Icon(Icons.category_outlined, color: Theme.of(context).colorScheme.outline),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+            ),
+          ),
+          items: _craftTypes.map((craft) {
+            return DropdownMenuItem(
+              value: craft,
+              child: Text(
+                AppLocalizations.of(context)?.translate(craft) ?? craft,
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedCraftType = value ?? 'carpenter';
+            });
+          },
+          validator: (value) {
+            if (value == null) {
+              return AppLocalizations.of(context)?.translate('craft_type_required') ?? 'نوع الحرفة مطلوب';
+            }
+            return null;
+          },
+        ),
+        SizedBox(height: 15.h),
+        CustomTextFieldWidget(
+          controller: _descriptionController,
+          hint: AppLocalizations.of(context)?.translate('craft_description') ?? 'وصف الحرفة',
+          prefixIcon: Icon(Icons.description_outlined, color: Theme.of(context).colorScheme.outline),
+          textInputType: TextInputType.multiline,
+          maxLine: 3,
+          validator: (value) {
+            if (value?.isEmpty ?? true) {
+              return AppLocalizations.of(context)?.translate('craft_description_required') ?? 'وصف الحرفة مطلوب';
+            }
+            return null;
+          },
+        ),
+        SizedBox(height: 15.h),
+        Text(
+          AppLocalizations.of(context)?.translate('years_of_experience') ?? 'سنوات الخبرة',
+          style: TextStyle(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        SizedBox(height: 8.h),
+        DropdownButtonFormField<int>(
+          value: _yearsOfExperience,
+          decoration: InputDecoration(
+            hintText: AppLocalizations.of(context)?.translate('select_experience') ?? 'اختر سنوات الخبرة',
+            prefixIcon: Icon(Icons.trending_up_outlined, color: Theme.of(context).colorScheme.outline),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+            ),
+          ),
+          items: List.generate(10, (index) => index + 1).map((years) {
+            return DropdownMenuItem(
+              value: years,
+              child: Text(
+                years.toString(),
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _yearsOfExperience = value ?? 1;
+            });
+          },
+          validator: (value) {
+            if (value == null) {
+              return AppLocalizations.of(context)?.translate('experience_required') ?? 'سنوات الخبرة مطلوبة';
+            }
+            return null;
+          },
+        ),
+      ],
     );
   }
 
@@ -464,6 +653,10 @@ class _RegisterScreenState extends State<RegisterScreen>
       password: _passwordController.text,
       name: _nameController.text.trim(),
       phone: _phoneController.text.trim(),
+      userType: _selectedUserType,
+      craftType: _selectedCraftType,
+      description: _descriptionController.text.trim(),
+      yearsOfExperience: _yearsOfExperience,
     );
 
     if (success && mounted) {

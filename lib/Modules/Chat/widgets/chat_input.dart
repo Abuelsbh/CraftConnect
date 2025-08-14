@@ -135,12 +135,29 @@ class _ChatInputState extends State<ChatInput> {
     try {
       setState(() => _isUploading = true);
       
+      print('📸 بدء اختيار صورة من المعرض...');
       final imageUrl = await _mediaService.uploadImageFromGallery();
+      
       if (imageUrl != null && mounted) {
+        print('📤 إرسال الصورة في المحادثة...');
         final chatProvider = Provider.of<ChatProvider>(context, listen: false);
         await chatProvider.sendImageMessage(imageUrl);
+        print('✅ تم إرسال الصورة بنجاح!');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم إرسال الصورة بنجاح'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        print('❌ لم يتم اختيار صورة');
       }
     } catch (e) {
+      print('❌ خطأ في رفع الصورة: $e');
       if (mounted) {
         _showErrorSnackBar('فشل في رفع الصورة: $e');
       }
@@ -155,12 +172,29 @@ class _ChatInputState extends State<ChatInput> {
     try {
       setState(() => _isUploading = true);
       
+      print('📸 بدء التقاط صورة من الكاميرا...');
       final imageUrl = await _mediaService.uploadImageFromCamera();
+      
       if (imageUrl != null && mounted) {
+        print('📤 إرسال الصورة في المحادثة...');
         final chatProvider = Provider.of<ChatProvider>(context, listen: false);
         await chatProvider.sendImageMessage(imageUrl);
+        print('✅ تم إرسال الصورة بنجاح!');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم إرسال الصورة بنجاح'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        print('❌ لم يتم التقاط صورة');
       }
     } catch (e) {
+      print('❌ خطأ في التقاط الصورة: $e');
       if (mounted) {
         _showErrorSnackBar('فشل في التقاط الصورة: $e');
       }
@@ -175,16 +209,36 @@ class _ChatInputState extends State<ChatInput> {
     try {
       setState(() => _isUploading = true);
       
+      print('📁 بدء اختيار ملف...');
       final fileData = await _mediaService.uploadFile();
+      
       if (fileData != null && mounted) {
+        print('📤 إرسال الملف في المحادثة...');
         final chatProvider = Provider.of<ChatProvider>(context, listen: false);
         await chatProvider.sendFileMessage(
           fileData['url']!,
           fileData['name']!,
           fileData['size']!,
         );
+        print('✅ تم إرسال الملف بنجاح!');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('تم إرسال الملف: ${fileData['name']}'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        print('❌ لم يتم اختيار ملف');
+        if (mounted) {
+          _showErrorSnackBar('لم يتم اختيار ملف');
+        }
       }
     } catch (e) {
+      print('❌ خطأ في رفع الملف: $e');
       if (mounted) {
         _showErrorSnackBar('فشل في رفع الملف: $e');
       }
@@ -199,12 +253,32 @@ class _ChatInputState extends State<ChatInput> {
     try {
       setState(() => _isUploading = true);
       
+      print('📍 بدء الحصول على الموقع الحالي...');
       final locationData = await _mediaService.getCurrentLocation();
+      
       if (locationData != null && mounted) {
+        print('📤 إرسال الموقع في المحادثة...');
         final chatProvider = Provider.of<ChatProvider>(context, listen: false);
         await chatProvider.sendLocationMessage(locationData);
+        print('✅ تم إرسال الموقع بنجاح!');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم إرسال الموقع بنجاح'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        print('❌ لم يتم الحصول على الموقع');
+        if (mounted) {
+          _showErrorSnackBar('فشل في الحصول على الموقع');
+        }
       }
     } catch (e) {
+      print('❌ خطأ في الحصول على الموقع: $e');
       if (mounted) {
         _showErrorSnackBar('فشل في الحصول على الموقع: $e');
       }
@@ -235,14 +309,36 @@ class _ChatInputState extends State<ChatInput> {
       if (audioPath != null) {
         setState(() => _isUploading = true);
         
+        print('🎤 بدء رفع الرسالة الصوتية...');
         final voiceUrl = await _mediaService.uploadVoiceMessage(audioPath);
+        
         if (voiceUrl != null && mounted) {
+          print('📤 إرسال الرسالة الصوتية في المحادثة...');
           final chatProvider = Provider.of<ChatProvider>(context, listen: false);
           final duration = _voiceRecorder.recordingDuration.inSeconds;
           await chatProvider.sendVoiceMessage(voiceUrl, duration);
+          print('✅ تم إرسال الرسالة الصوتية بنجاح!');
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('تم إرسال الرسالة الصوتية (${duration}s)'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        } else {
+          print('❌ فشل في رفع الرسالة الصوتية');
+          if (mounted) {
+            _showErrorSnackBar('فشل في رفع الرسالة الصوتية');
+          }
         }
+      } else {
+        print('❌ لم يتم تسجيل رسالة صوتية');
       }
     } catch (e) {
+      print('❌ خطأ في إرسال الرسالة الصوتية: $e');
       if (mounted) {
         _showErrorSnackBar('فشل في إرسال الرسالة الصوتية: $e');
       }
@@ -389,29 +485,50 @@ class _ChatInputState extends State<ChatInput> {
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20.r),
       ),
-      child: TextField(
-        controller: _messageController,
-        focusNode: _focusNode,
-        textInputAction: TextInputAction.send,
-        onSubmitted: _handleSubmitted,
-        decoration: InputDecoration(
-          hintText: 'اكتب رسالة...',
-          hintStyle: TextStyle(
-            color: Theme.of(context).colorScheme.outline,
-            fontSize: 14.sp,
+      child: Stack(
+        children: [
+          TextField(
+            controller: _messageController,
+            focusNode: _focusNode,
+            textInputAction: TextInputAction.send,
+            enabled: !_isUploading,
+            onSubmitted: _handleSubmitted,
+            decoration: InputDecoration(
+              hintText: _isUploading ? 'جاري الرفع...' : 'اكتب رسالة...',
+              hintStyle: TextStyle(
+                color: Theme.of(context).colorScheme.outline,
+                fontSize: 14.sp,
+              ),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16.w,
+                vertical: 12.h,
+              ),
+            ),
+            maxLines: null,
+            textDirection: TextDirection.rtl,
+            style: TextStyle(
+              fontSize: 14.sp,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 16.w,
-            vertical: 12.h,
-          ),
-        ),
-        maxLines: null,
-        textDirection: TextDirection.rtl,
-        style: TextStyle(
-          fontSize: 14.sp,
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
+          if (_isUploading)
+            Positioned(
+              right: 12.w,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: SizedBox(
+                  width: 16.w,
+                  height: 16.w,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -425,14 +542,23 @@ class _ChatInputState extends State<ChatInput> {
         borderRadius: BorderRadius.circular(20.r),
       ),
       child: IconButton(
-        onPressed: _isComposing ? _handleSendPressed : null,
-        icon: Icon(
-          Icons.send_rounded,
-          color: _isComposing
-              ? Colors.white
-              : Theme.of(context).colorScheme.outline,
-          size: 20.w,
-        ),
+        onPressed: (_isComposing && !_isUploading) ? _handleSendPressed : null,
+        icon: _isUploading
+            ? SizedBox(
+                width: 20.w,
+                height: 20.w,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: _isComposing ? Colors.white : Theme.of(context).colorScheme.outline,
+                ),
+              )
+            : Icon(
+                Icons.send_rounded,
+                color: _isComposing
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.outline,
+                size: 20.w,
+              ),
         constraints: BoxConstraints(
           minWidth: 40.w,
           minHeight: 40.h,

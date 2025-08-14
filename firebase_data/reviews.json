@@ -1,0 +1,203 @@
+{
+  "reviews": [
+    {
+      "id": "review_001",
+      "artisanId": "artisan_001",
+      "userId": "user_001",
+      "userName": "أحمد محمد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_001%2Fprofile.jpg?alt=media",
+      "rating": 5.0,
+      "comment": "عمل ممتاز وجودة عالية. أنصح بالتعامل معه بشدة. قام بعمل خزانة مطبخ رائعة وبسعر معقول.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_001%2Fimage1.jpg?alt=media"
+      ],
+      "createdAt": "2024-12-15T10:30:00.000Z",
+      "updatedAt": "2024-12-15T10:30:00.000Z"
+    },
+    {
+      "id": "review_002",
+      "artisanId": "artisan_001",
+      "userId": "user_002",
+      "userName": "فاطمة علي",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_002%2Fprofile.jpg?alt=media",
+      "rating": 4.5,
+      "comment": "حرفي محترف ومخلص في عمله. سأتعامل معه مرة أخرى. قام بتصميم طاولة طعام جميلة.",
+      "images": [],
+      "createdAt": "2024-12-10T14:20:00.000Z",
+      "updatedAt": "2024-12-10T14:20:00.000Z"
+    },
+    {
+      "id": "review_003",
+      "artisanId": "artisan_001",
+      "userId": "user_003",
+      "userName": "خالد عبدالله",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_003%2Fprofile.jpg?alt=media",
+      "rating": 5.0,
+      "comment": "أفضل نجار تعاملت معه. دقة في المواعيد وجودة في العمل. أنصح به بشدة.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_003%2Fimage1.jpg?alt=media",
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_003%2Fimage2.jpg?alt=media"
+      ],
+      "createdAt": "2024-12-08T16:45:00.000Z",
+      "updatedAt": "2024-12-08T16:45:00.000Z"
+    },
+    {
+      "id": "review_004",
+      "artisanId": "artisan_002",
+      "userId": "user_004",
+      "userName": "سارة أحمد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_004%2Fprofile.jpg?alt=media",
+      "rating": 5.0,
+      "comment": "كهربائي ممتاز ومحترف. قام بإصلاح جميع المشاكل الكهربائية في المنزل بسرعة ودقة.",
+      "images": [],
+      "createdAt": "2024-12-18T09:15:00.000Z",
+      "updatedAt": "2024-12-18T09:15:00.000Z"
+    },
+    {
+      "id": "review_005",
+      "artisanId": "artisan_002",
+      "userId": "user_005",
+      "userName": "محمد سعد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_005%2Fprofile.jpg?alt=media",
+      "rating": 4.8,
+      "comment": "عمل رائع في تركيب نظام الطاقة الشمسية. أنصح به للجميع.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_005%2Fimage1.jpg?alt=media"
+      ],
+      "createdAt": "2024-12-12T11:30:00.000Z",
+      "updatedAt": "2024-12-12T11:30:00.000Z"
+    },
+    {
+      "id": "review_006",
+      "artisanId": "artisan_003",
+      "userId": "user_006",
+      "userName": "عبدالله سالم",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_006%2Fprofile.jpg?alt=media",
+      "rating": 4.6,
+      "comment": "سباك ماهر ومحترف. قام بإصلاح مشكلة تسريب المياه بسرعة.",
+      "images": [],
+      "createdAt": "2024-12-16T13:20:00.000Z",
+      "updatedAt": "2024-12-16T13:20:00.000Z"
+    },
+    {
+      "id": "review_007",
+      "artisanId": "artisan_004",
+      "userId": "user_007",
+      "userName": "نورا خالد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_007%2Fprofile.jpg?alt=media",
+      "rating": 4.7,
+      "comment": "صباغ ممتاز. قام بطلاء المنزل بألوان جميلة ونظيفة.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_007%2Fimage1.jpg?alt=media",
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_007%2Fimage2.jpg?alt=media"
+      ],
+      "createdAt": "2024-12-14T15:40:00.000Z",
+      "updatedAt": "2024-12-14T15:40:00.000Z"
+    },
+    {
+      "id": "review_008",
+      "artisanId": "artisan_005",
+      "userId": "user_008",
+      "userName": "فيصل أحمد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_008%2Fprofile.jpg?alt=media",
+      "rating": 5.0,
+      "comment": "ميكانيكي محترف. قام بإصلاح سيارتي بسرعة وجودة عالية.",
+      "images": [],
+      "createdAt": "2024-12-17T10:25:00.000Z",
+      "updatedAt": "2024-12-17T10:25:00.000Z"
+    },
+    {
+      "id": "review_009",
+      "artisanId": "artisan_005",
+      "userId": "user_009",
+      "userName": "عبدالرحمن محمد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_009%2Fprofile.jpg?alt=media",
+      "rating": 4.9,
+      "comment": "أفضل ميكانيكي تعاملت معه. أسعار معقولة وجودة عالية.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_009%2Fimage1.jpg?alt=media"
+      ],
+      "createdAt": "2024-12-11T12:10:00.000Z",
+      "updatedAt": "2024-12-11T12:10:00.000Z"
+    },
+    {
+      "id": "review_010",
+      "artisanId": "artisan_006",
+      "userId": "user_010",
+      "userName": "يوسف علي",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_010%2Fprofile.jpg?alt=media",
+      "rating": 4.5,
+      "comment": "نجار جيد. قام بعمل خزانة ملابس جميلة.",
+      "images": [],
+      "createdAt": "2024-12-13T14:35:00.000Z",
+      "updatedAt": "2024-12-13T14:35:00.000Z"
+    },
+    {
+      "id": "review_011",
+      "artisanId": "artisan_007",
+      "userId": "user_011",
+      "userName": "ماجد سعد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_011%2Fprofile.jpg?alt=media",
+      "rating": 4.7,
+      "comment": "كهربائي محترف. قام بتركيب نظام أمان ممتاز.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_011%2Fimage1.jpg?alt=media"
+      ],
+      "createdAt": "2024-12-19T08:50:00.000Z",
+      "updatedAt": "2024-12-19T08:50:00.000Z"
+    },
+    {
+      "id": "review_012",
+      "artisanId": "artisan_008",
+      "userId": "user_012",
+      "userName": "علي محمد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_012%2Fprofile.jpg?alt=media",
+      "rating": 4.4,
+      "comment": "سباك جيد. قام بإصلاح مشكلة في الحمام.",
+      "images": [],
+      "createdAt": "2024-12-15T16:20:00.000Z",
+      "updatedAt": "2024-12-15T16:20:00.000Z"
+    },
+    {
+      "id": "review_013",
+      "artisanId": "artisan_009",
+      "userId": "user_013",
+      "userName": "يوسف أحمد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_013%2Fprofile.jpg?alt=media",
+      "rating": 4.6,
+      "comment": "صباغ ماهر. قام بطلاء المطبخ بألوان جميلة.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_013%2Fimage1.jpg?alt=media"
+      ],
+      "createdAt": "2024-12-16T11:45:00.000Z",
+      "updatedAt": "2024-12-16T11:45:00.000Z"
+    },
+    {
+      "id": "review_014",
+      "artisanId": "artisan_010",
+      "userId": "user_014",
+      "userName": "عبدالرحمن سعد",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_014%2Fprofile.jpg?alt=media",
+      "rating": 4.8,
+      "comment": "ميكانيكي ممتاز. قام بإصلاح محرك السيارة باحترافية عالية.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_014%2Fimage1.jpg?alt=media",
+        "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/reviews%2Freview_014%2Fimage2.jpg?alt=media"
+      ],
+      "createdAt": "2024-12-18T13:15:00.000Z",
+      "updatedAt": "2024-12-18T13:15:00.000Z"
+    },
+    {
+      "id": "review_015",
+      "artisanId": "artisan_010",
+      "userId": "user_015",
+      "userName": "خالد عبدالله",
+      "userProfileImage": "https://firebasestorage.googleapis.com/v0/b/your-project.appspot.com/o/users%2Fuser_015%2Fprofile.jpg?alt=media",
+      "rating": 5.0,
+      "comment": "أفضل ميكانيكي في الرياض. أنصح به للجميع.",
+      "images": [],
+      "createdAt": "2024-12-12T09:30:00.000Z",
+      "updatedAt": "2024-12-12T09:30:00.000Z"
+    }
+  ]
+} 

@@ -153,11 +153,13 @@ class ChatPage extends StatelessWidget {
   }
 
   Widget _buildChatRoomsList(BuildContext context, ChatProvider chatProvider) {
+    final filteredRooms = chatProvider.getFilteredChatRooms();
+    
     return ListView.builder(
       padding: EdgeInsets.all(AppConstants.padding),
-      itemCount: chatProvider.chatRooms.length,
+      itemCount: filteredRooms.length,
       itemBuilder: (context, index) {
-        final room = chatProvider.chatRooms[index];
+        final room = filteredRooms[index];
         return ChatRoomTile(
           room: room,
           currentUserId: chatProvider.currentUser?.id ?? '',

@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../Models/artisan_model.dart';
@@ -23,6 +24,7 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
   bool _isLoading = true;
   List<ArtisanModel> _artisans = [];
   String _craftName = '';
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
@@ -33,86 +35,44 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
     });
   }
 
-  void _loadCraftDetails() {
-    // محاكاة تحميل البيانات
+  void _loadCraftDetails() async {
     setState(() {
-      _craftName = _getCraftName(widget.craftId);
-      _artisans = _generateSampleArtisans();
-      _isLoading = false;
+      _isLoading = true;
     });
+
+    try {
+      // تحميل الحرفيين من Firebase حسب نوع الحرفة
+      final querySnapshot = await _firestore
+          .collection('artisans')
+          .where('craftType', isEqualTo: widget.craftId)
+          .get();
+
+      final List<ArtisanModel> artisans = [];
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        artisans.add(ArtisanModel.fromJson(data));
+      }
+
+      setState(() {
+        _craftName = _getCraftName(widget.craftId);
+        _artisans = artisans;
+        _isLoading = false;
+      });
+
+      print('✅ تم تحميل ${artisans.length} حرفي من نوع ${widget.craftId}');
+    } catch (e) {
+      print('❌ خطأ في تحميل الحرفيين: $e');
+      setState(() {
+        _craftName = _getCraftName(widget.craftId);
+        _artisans = [];
+        _isLoading = false;
+      });
+    }
   }
 
   String _getCraftName(String craftId) {
     return AppLocalizations.of(context)?.translate(craftId) ?? craftId;
-  }
-
-  List<ArtisanModel> _generateSampleArtisans() {
-    // بيانات تجريبية - في التطبيق الحقيقي ستأتي من Firebase
-    return [
-      ArtisanModel(
-        id: '1',
-        name: 'محمد أحمد',
-        email: 'mohamed@example.com',
-        phone: '+966501234567',
-        profileImageUrl: 'https://via.placeholder.com/150',
-        craftType: widget.craftId,
-        yearsOfExperience: 8,
-        description: 'خبرة طويلة في مجال ${_getCraftName(widget.craftId)} مع أعمال عالية الجودة',
-        latitude: 24.7136,
-        longitude: 46.6753,
-        address: 'الرياض، المملكة العربية السعودية',
-        rating: 4.8,
-        reviewCount: 156,
-        galleryImages: [
-          'https://via.placeholder.com/300x200',
-          'https://via.placeholder.com/300x200',
-          'https://via.placeholder.com/300x200',
-        ],
-        createdAt: DateTime.now().subtract(const Duration(days: 365)),
-        updatedAt: DateTime.now(),
-      ),
-      ArtisanModel(
-        id: '2',
-        name: 'سعد محمد',
-        email: 'saad@example.com',
-        phone: '+966509876543',
-        profileImageUrl: 'https://via.placeholder.com/150',
-        craftType: widget.craftId,
-        yearsOfExperience: 12,
-        description: 'متخصص محترف في ${_getCraftName(widget.craftId)} مع ضمان جودة العمل',
-        latitude: 24.7236,
-        longitude: 46.6653,
-        address: 'الرياض، المملكة العربية السعودية',
-        rating: 4.9,
-        reviewCount: 203,
-        galleryImages: [
-          'https://via.placeholder.com/300x200',
-          'https://via.placeholder.com/300x200',
-        ],
-        createdAt: DateTime.now().subtract(const Duration(days: 500)),
-        updatedAt: DateTime.now(),
-      ),
-      ArtisanModel(
-        id: '3',
-        name: 'عبدالله سالم',
-        email: 'abdullah@example.com',
-        phone: '+966555123456',
-        profileImageUrl: 'https://via.placeholder.com/150',
-        craftType: widget.craftId,
-        yearsOfExperience: 6,
-        description: 'حرفي ماهر في ${_getCraftName(widget.craftId)} بأسعار منافسة',
-        latitude: 24.7036,
-        longitude: 46.6853,
-        address: 'الرياض، المملكة العربية السعودية',
-        rating: 4.6,
-        reviewCount: 89,
-        galleryImages: [
-          'https://via.placeholder.com/300x200',
-        ],
-        createdAt: DateTime.now().subtract(const Duration(days: 200)),
-        updatedAt: DateTime.now(),
-      ),
-    ];
   }
 
   @override
@@ -232,6 +192,10 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
   }
 
   Widget _buildArtisansList() {
+    if (_artisans.isEmpty) {
+      return _buildEmptyState();
+    }
+
     return AnimationLimiter(
       child: ListView.builder(
         padding: EdgeInsets.all(AppConstants.padding),
@@ -251,6 +215,38 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: 80.w,
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+          ),
+          SizedBox(height: 16.h),
+          Text(
+            'لا توجد حرفيين متاحين',
+            style: TextStyle(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            'جاري تحميل البيانات...',
+            style: TextStyle(
+              fontSize: 14.sp,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -287,9 +283,9 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
                       ),
                     ),
                   ),
-                  
+
                   SizedBox(width: AppConstants.padding),
-                  
+
                   // معلومات الحرفي
                   Expanded(
                     child: Column(
@@ -313,7 +309,7 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
                                 vertical: 4.h,
                               ),
                               decoration: BoxDecoration(
-                                color: artisan.isAvailable 
+                                color: artisan.isAvailable
                                     ? Colors.green.withValues(alpha: 0.1)
                                     : Colors.red.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(6.r),
@@ -329,9 +325,9 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
                             ),
                           ],
                         ),
-                        
+
                         SizedBox(height: 4.h),
-                        
+
                         // التقييم والخبرة
                         Row(
                           children: [
@@ -374,9 +370,9 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
                             ),
                           ],
                         ),
-                        
+
                         SizedBox(height: 8.h),
-                        
+
                         // العنوان
                         Row(
                           children: [
@@ -412,9 +408,9 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
                   ),
                 ],
               ),
-              
+
               SizedBox(height: AppConstants.padding),
-              
+
               // الوصف
               Text(
                 artisan.description,
@@ -426,9 +422,9 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              
+
               SizedBox(height: AppConstants.padding),
-              
+
               // أزرار الإجراءات
               Row(
                 children: [
@@ -456,9 +452,9 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
                       ),
                     ),
                   ),
-                  
+
                   SizedBox(width: AppConstants.smallPadding),
-                  
+
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () {
@@ -493,7 +489,7 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
   void _handleMessageButton(ArtisanModel artisan) {
     final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-    
+
     if (authProvider.isLoggedIn) {
       _startChatWithArtisan(chatProvider, artisan);
     } else {
@@ -505,11 +501,11 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
     try {
       // إنشاء غرفة دردشة مع الحرفي والحصول عليها مباشرة
       final room = await chatProvider.createChatRoomAndReturn(artisan.id);
-      
+
       if (room != null) {
         // فتح غرفة الدردشة
         await chatProvider.openChatRoom(room.id);
-        
+
         if (mounted) {
           context.push('/chat-room');
         }
