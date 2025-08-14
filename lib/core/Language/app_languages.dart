@@ -17,12 +17,9 @@ class AppLanguage extends ChangeNotifier {
 
   Future fetchLocale() async {
     if (SharedPref.getLanguage() == null){
-      if(!kDebugMode){
-        final List<String> systemLocales = WidgetsBinding.instance.platformDispatcher.locales.map((e) => e.languageCode).toList();
-        _appLanguage = Languages.values.firstWhere((lang) => systemLocales.contains(lang.name));
-      }else{
-        _appLanguage = defaultLanguage;
-      }
+      // تعيين العربية كلغة افتراضية
+      _appLanguage = Languages.ar;
+      await SharedPref.setLanguage(lang: _appLanguage.name);
     }else{
       _appLanguage = Languages.values.firstWhere((lang) => lang.name == SharedPref.getLanguage());
     }

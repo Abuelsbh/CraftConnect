@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../Models/artisan_model.dart';
@@ -144,132 +145,42 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
   }
 
   Future<void> _loadArtisansData() async {
-    // محاكاة تحميل البيانات من قاعدة البيانات
-    await Future.delayed(const Duration(milliseconds: 1000));
-    
-    setState(() {
-      _artisans = [
-        ArtisanModel(
-          id: '1',
-          name: 'محمد أحمد النجار',
-          email: 'mohamed@example.com',
-          phone: '+966501234567',
-          profileImageUrl: '',
-          craftType: 'carpenter',
-          yearsOfExperience: 8,
-          description: 'نجار محترف متخصص في صناعة الأثاث المنزلي والمكتبي بأجود الخامات وأفضل التصاميم العصرية',
-          latitude: 29.875587,
-          longitude: 31.290857,
-          address: 'حي الملز، شارع الأمير فيصل، الرياض',
-          rating: 4.8,
-          reviewCount: 156,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        ArtisanModel(
-          id: '2',
-          name: 'سعد محمد الكهربائي',
-          email: 'saad@example.com',
-          phone: '+966509876543',
-          profileImageUrl: '',
-          craftType: 'electrician',
-          yearsOfExperience: 12,
-          description: 'كهربائي محترف - تمديدات كهربائية وصيانة وإصلاح جميع الأعطال الكهربائية مع ضمان شامل',
-          latitude: 29.878743,
-          longitude: 31.289677,
-          address: 'حي العليا، طريق الملك عبدالعزيز، الرياض',
-          rating: 4.9,
-          reviewCount: 203,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        ArtisanModel(
-          id: '3',
-          name: 'عبدالله سالم السباك',
-          email: 'abdullah@example.com',
-          phone: '+966555123456',
-          profileImageUrl: '',
-          craftType: 'plumber',
-          yearsOfExperience: 6,
-          description: 'سباك ماهر متخصص في تسليك المجاري وتمديدات المياه والصحي وإصلاح التسريبات',
-          latitude: 29.893100,
-          longitude: 31.288798,
-          address: 'حي السليمانية، شارع التخصصي، الرياض',
-          rating: 4.6,
-          reviewCount: 89,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        ArtisanModel(
-          id: '4',
-          name: 'خالد العتيبي الصباغ',
-          email: 'khalid@example.com',
-          phone: '+966556789012',
-          profileImageUrl: '',
-          craftType: 'painter',
-          yearsOfExperience: 10,
-          description: 'صباغ محترف متخصص في الدهانات الداخلية والخارجية بأحدث التقنيات والألوان العصرية',
-          latitude: 24.7080,
-          longitude: 46.6850,
-          address: 'حي الربوة، شارع العروبة، الرياض',
-          rating: 4.7,
-          reviewCount: 134,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        ArtisanModel(
-          id: '5',
-          name: 'أحمد القحطاني الميكانيكي',
-          email: 'ahmed@example.com',
-          phone: '+966554321098',
-          profileImageUrl: '',
-          craftType: 'mechanic',
-          yearsOfExperience: 15,
-          description: 'ميكانيكي سيارات متخصص في جميع أنواع السيارات - صيانة وإصلاح وقطع غيار أصلية',
-          latitude: 24.7250,
-          longitude: 46.6600,
-          address: 'حي الشفا، شارع الأمير سلمان، الرياض',
-          rating: 4.9,
-          reviewCount: 298,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        ArtisanModel(
-          id: '6',
-          name: 'فيصل الدوسري النجار',
-          email: 'faisal@example.com',
-          phone: '+966558888999',
-          profileImageUrl: '',
-          craftType: 'carpenter',
-          yearsOfExperience: 5,
-          description: 'نجار متمرس في أعمال الديكورات الخشبية وتفصيل الخزائن والأبواب حسب الطلب',
-          latitude: 24.7300,
-          longitude: 46.6900,
-          address: 'حي النخيل، شارع صلاح الدين، الرياض',
-          rating: 4.5,
-          reviewCount: 67,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        ArtisanModel(
-          id: '7',
-          name: 'ماجد السعدون الكهربائي',
-          email: 'majed@example.com',
-          phone: '+966557777888',
-          profileImageUrl: '',
-          craftType: 'electrician',
-          yearsOfExperience: 9,
-          description: 'كهربائي معتمد - تركيب وصيانة الأنظمة الكهربائية الذكية والطاقة الشمسية',
-          latitude: 24.7050,
-          longitude: 46.6950,
-          address: 'حي الورود، شارع الوشم، الرياض',
-          rating: 4.7,
-          reviewCount: 123,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-      ];
-    });
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      // جلب جميع الحرفيين من Firebase
+      final QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('artisans')
+          .get();
+
+      final List<ArtisanModel> artisans = [];
+      
+      for (var doc in querySnapshot.docs) {
+        try {
+          final artisanData = doc.data() as Map<String, dynamic>;
+          final artisan = ArtisanModel.fromJson(artisanData);
+          artisans.add(artisan);
+        } catch (e) {
+          print('خطأ في تحويل بيانات الحرفي ${doc.id}: $e');
+        }
+      }
+
+      setState(() {
+        _artisans = artisans;
+        _isLoading = false;
+      });
+
+      print('تم تحميل ${artisans.length} حرفي من Firebase');
+      
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'فشل في تحميل بيانات الحرفيين: $e';
+      });
+      print('خطأ في تحميل بيانات الحرفيين: $e');
+    }
   }
 
   void _createMarkers() {

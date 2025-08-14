@@ -4,11 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../Models/artisan_model.dart';
+import '../../Models/review_model.dart';
 import '../../providers/simple_auth_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/artisan_provider.dart';
+import '../../services/review_service.dart';
 
 class ArtisanProfileScreen extends StatefulWidget {
   final String artisanId;
@@ -22,8 +26,11 @@ class ArtisanProfileScreen extends StatefulWidget {
 class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
     with TickerProviderStateMixin {
   bool _isLoading = true;
+  bool _isLoadingReviews = false;
   ArtisanModel? _artisan;
+  List<ReviewModel> _reviews = [];
   late TabController _tabController;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
@@ -32,6 +39,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
     // تأجيل تحميل البيانات حتى بعد بناء الـ widget
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadArtisanProfile();
+      _loadReviews();
     });
   }
 
@@ -41,41 +49,62 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
     super.dispose();
   }
 
-  void _loadArtisanProfile() {
-    // محاكاة تحميل البيانات
-    Future.delayed(const Duration(seconds: 1), () {
+  Future<void> _loadArtisanProfile() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // جلب بيانات الحرفي من Firebase
+      final artisanDoc = await _firestore.collection('artisans').doc(widget.artisanId).get();
+      
+      if (artisanDoc.exists) {
+        final artisanData = artisanDoc.data()!;
+        final artisan = ArtisanModel.fromJson(artisanData);
+        
+        setState(() {
+          _artisan = artisan;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+        _showErrorSnackBar('لم يتم العثور على بيانات الحرفي');
+      }
+    } catch (e) {
       setState(() {
-        _artisan = _generateSampleArtisan();
         _isLoading = false;
       });
-    });
+      _showErrorSnackBar('فشل في تحميل بيانات الحرفي: $e');
+    }
   }
 
-  ArtisanModel _generateSampleArtisan() {
-    return ArtisanModel(
-      id: widget.artisanId,
-      name: 'محمد أحمد السعيد',
-      email: 'mohamed.ahmed@example.com',
-      phone: '+966501234567',
-      profileImageUrl: 'https://via.placeholder.com/300',
-      craftType: 'carpenter',
-      yearsOfExperience: 12,
-      description: 'نجار محترف متخصص في صناعة الأثاث المنزلي والمكتبي بأعلى معايير الجودة. أتميز بالدقة في العمل والالتزام بالمواعيد المحددة. لدي خبرة واسعة في جميع أنواع الأخشاب والتشطيبات الحديثة.',
-      latitude: 24.7136,
-      longitude: 46.6753,
-      address: 'حي النرجس، شارع الأمير محمد بن عبدالعزيز، الرياض 12382',
-      rating: 4.8,
-      reviewCount: 156,
-      galleryImages: [
-        'https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=مشروع+1',
-        'https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=مشروع+2',
-        'https://via.placeholder.com/400x300/45B7D1/FFFFFF?text=مشروع+3',
-        'https://via.placeholder.com/400x300/96CEB4/FFFFFF?text=مشروع+4',
-        'https://via.placeholder.com/400x300/FFEAA7/000000?text=مشروع+5',
-        'https://via.placeholder.com/400x300/DDA0DD/000000?text=مشروع+6',
-      ],
-      createdAt: DateTime.now().subtract(const Duration(days: 1095)),
-      updatedAt: DateTime.now(),
+  Future<void> _loadReviews() async {
+    setState(() {
+      _isLoadingReviews = true;
+    });
+
+    try {
+      final reviews = await ReviewService().getReviewsByArtisanId(widget.artisanId);
+      setState(() {
+        _reviews = reviews;
+        _isLoadingReviews = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingReviews = false;
+      });
+      _showErrorSnackBar('فشل في تحميل التقييمات: $e');
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
     );
   }
 
@@ -112,7 +141,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
 
   Widget _buildSliverAppBar() {
     return SliverAppBar(
-      expandedHeight: 200.h,
+      expandedHeight: 250.h,
       floating: false,
       pinned: true,
       backgroundColor: Theme.of(context).colorScheme.primary,
@@ -188,6 +217,24 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
                     color: Colors.white,
                   ),
                 ),
+
+                Text(
+                  _artisan!.email,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: Colors.white,
+                  ),
+                ),
+
+                Text(
+                  _artisan!.address,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: Colors.white,
+                  ),
+                ),
+
+
               ],
             ),
           ),
@@ -236,7 +283,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
           SizedBox(height: AppConstants.padding),
 
           // معلومات الاتصال
-          _buildContactInfo(),
+          //_buildContactInfo(),
         ],
       ),
     );
@@ -416,23 +463,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
               ),
             ),
           ),
-          SizedBox(width: AppConstants.smallPadding),
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12.r),
-            ),
-            child: IconButton(
-              onPressed: () {
-                // TODO: إجراء مكالمة
-              },
-              icon: Icon(
-                Icons.phone_rounded,
-                color: Theme.of(context).colorScheme.primary,
-                size: 24.w,
-              ),
-            ),
-          ),
+
         ],
       ),
     );
@@ -511,6 +542,26 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
           ),
           SizedBox(height: AppConstants.padding),
           _buildSkillChips(),
+          SizedBox(height: AppConstants.padding),
+          // زر الانتقال إلى تفاصيل الحرفة
+          ElevatedButton.icon(
+            onPressed: () {
+              context.push('/craft-details/${_artisan!.craftType}');
+            },
+            icon: Icon(Icons.work_rounded, size: 20.w),
+            label: Text(
+              'تفاصيل الحرفة',
+              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 20.w),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -675,8 +726,8 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
           SizedBox(height: AppConstants.padding),
           Expanded(
             child: ListView.builder(
-              itemCount: 3, // عدد التقييمات المعروضة
-              itemBuilder: (context, index) => _buildReviewCard(index),
+              itemCount: _reviews.length, // عدد التقييمات المعروضة
+              itemBuilder: (context, index) => _buildReviewCard(_reviews[index]),
             ),
           ),
         ],
@@ -684,15 +735,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
     );
   }
 
-  Widget _buildReviewCard(int index) {
-    final reviewers = ['أحمد محمد', 'فاطمة سالم', 'عبدالله يوسف'];
-    final ratings = [5.0, 4.0, 5.0];
-    final comments = [
-      'عمل ممتاز وجودة عالية. أنصح بالتعامل معه.',
-      'حرفي ماهر والتزام بالمواعيد.',
-      'إبداع في العمل وأسعار مناسبة.',
-    ];
-
+  Widget _buildReviewCard(ReviewModel review) {
     return Card(
       margin: EdgeInsets.only(bottom: AppConstants.smallPadding),
       child: Padding(
@@ -716,7 +759,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        reviewers[index],
+                        review.userName,
                         style: TextStyle(
                           fontSize: 14.sp,
                           fontWeight: FontWeight.w600,
@@ -729,14 +772,14 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
                             return Icon(
                               Icons.star_rounded,
                               size: 14.w,
-                              color: starIndex < ratings[index]
+                              color: starIndex < review.rating
                                   ? Colors.amber
                                   : Colors.grey.withValues(alpha: 0.3),
                             );
                           }),
                           SizedBox(width: 8.w),
                           Text(
-                            'منذ ${index + 1} أسبوع',
+                            'منذ ${DateTime.now().difference(review.createdAt).inDays} يوم',
                             style: TextStyle(
                               fontSize: 11.sp,
                               color: Theme.of(context).colorScheme.outline,
@@ -751,7 +794,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen>
             ),
             SizedBox(height: 8.h),
             Text(
-              comments[index],
+              review.comment,
               style: TextStyle(
                 fontSize: 13.sp,
                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
