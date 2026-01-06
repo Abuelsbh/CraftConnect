@@ -10,9 +10,9 @@ class ThemeClass extends ThemeModel{
   // ألوان محسنة للوضع الفاتح
   ThemeClass.defaultTheme({
     super.isDark = false,
-    super.primaryColor = const Color(0xFF2E7D32), // أخضر داكن أنيق
-    super.accentColor = const Color(0xFF4CAF50), // أخضر متوسط
-    super.backGroundColor = const Color(0xFFFAFAFA), // رمادي فاتح جداً
+    super.primaryColor = const Color(0xFF812FF4), // أخضر داكن أنيق
+    super.accentColor = const Color(0xFFD9D9D9), // أخضر متوسط
+    super.backGroundColor = const Color(0xFFFFFFFF), // رمادي فاتح جداً
     super.darkGreyColor = const Color(0xFF2C2C2C), // رمادي داكن
     super.lightGreyColor = const Color(0xFF9E9E9E), // رمادي متوسط
     super.warningColor = const Color(0xFFE53935), // أحمر واضح
@@ -21,8 +21,8 @@ class ThemeClass extends ThemeModel{
   // ألوان محسنة للوضع الداكن
   static ThemeModel darkTheme() => ThemeModel(
     isDark: true,
-    primaryColor: const Color(0xFF4CAF50), // أخضر أفتح للوضع الداكن
-    accentColor: const Color(0xFF81C784), // أخضر فاتح
+    primaryColor: const Color(0xFF812FF4), // بنفسجي للوضع الداكن
+    accentColor: const Color(0xFF2C2C2C), // بنفسجي فاتح
     backGroundColor: const Color(0xFF121212), // أسود داكن
     darkGreyColor: const Color(0xFFE0E0E0), // رمادي فاتح (للنصوص)
     lightGreyColor: const Color(0xFFBDBDBD), // رمادي متوسط

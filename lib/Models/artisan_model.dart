@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ArtisanModel extends Equatable {
   final String id;
@@ -15,6 +16,7 @@ class ArtisanModel extends Equatable {
   final double rating;
   final int reviewCount;
   final List<String> galleryImages;
+  final List<String> skills;
   final bool isAvailable;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -34,6 +36,7 @@ class ArtisanModel extends Equatable {
     this.rating = 0.0,
     this.reviewCount = 0,
     this.galleryImages = const [],
+    this.skills = const [],
     this.isAvailable = true,
     required this.createdAt,
     required this.updatedAt,
@@ -55,9 +58,10 @@ class ArtisanModel extends Equatable {
       rating: (json['rating'] ?? 0.0).toDouble(),
       reviewCount: json['reviewCount'] ?? 0,
       galleryImages: List<String>.from(json['galleryImages'] ?? []),
+      skills: List<String>.from(json['skills'] ?? []),
       isAvailable: json['isAvailable'] ?? true,
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
+      createdAt: _parseDateTime(json['createdAt']),
+      updatedAt: _parseDateTime(json['updatedAt']),
     );
   }
 
@@ -77,6 +81,7 @@ class ArtisanModel extends Equatable {
       'rating': rating,
       'reviewCount': reviewCount,
       'galleryImages': galleryImages,
+      'skills': skills,
       'isAvailable': isAvailable,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -98,6 +103,7 @@ class ArtisanModel extends Equatable {
     double? rating,
     int? reviewCount,
     List<String>? galleryImages,
+    List<String>? skills,
     bool? isAvailable,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -117,10 +123,36 @@ class ArtisanModel extends Equatable {
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
       galleryImages: galleryImages ?? this.galleryImages,
+      skills: skills ?? this.skills,
       isAvailable: isAvailable ?? this.isAvailable,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  // دالة مساعدة لتحويل التاريخ من Firestore
+  static DateTime _parseDateTime(dynamic dateValue) {
+    if (dateValue == null) {
+      return DateTime.now();
+    }
+    
+    if (dateValue is Timestamp) {
+      return dateValue.toDate();
+    }
+    
+    if (dateValue is DateTime) {
+      return dateValue;
+    }
+    
+    if (dateValue is String) {
+      try {
+        return DateTime.parse(dateValue);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    
+    return DateTime.now();
   }
 
   @override
@@ -139,6 +171,7 @@ class ArtisanModel extends Equatable {
         rating,
         reviewCount,
         galleryImages,
+        skills,
         isAvailable,
         createdAt,
         updatedAt,

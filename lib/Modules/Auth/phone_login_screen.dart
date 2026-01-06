@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/Language/locales.dart';
 
 class PhoneLoginScreen extends StatelessWidget {
   const PhoneLoginScreen({super.key});
@@ -12,10 +13,10 @@ class PhoneLoginScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => context.pop(),
         ),
-        title: const Text('تسجيل الدخول بالهاتف'),
+        title: Text(AppLocalizations.of(context)?.translate('phone_login_title') ?? 'تسجيل الدخول بالهاتف'),
       ),
-      body: const Center(
-        child: Text('قريباً: تسجيل الدخول برقم الهاتف باستخدام Firebase Phone Auth'),
+      body: Center(
+        child: Text(AppLocalizations.of(context)?.translate('phone_login_coming_soon') ?? 'قريباً: تسجيل الدخول برقم الهاتف باستخدام Firebase Phone Auth'),
       ),
     );
   }

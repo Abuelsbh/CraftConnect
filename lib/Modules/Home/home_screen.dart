@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:template_2025/Modules/Maps/complete_maps_page.dart';
 import '../../Utilities/app_constants.dart';
 import '../../Utilities/performance_helper.dart';
 import '../../core/Language/locales.dart';
+import '../../generated/assets.dart';
 import '../../models/craft_model.dart';
 import '../../providers/artisan_provider.dart';
 import '../Chat/chat_page.dart';
-import '../Maps/optimized_maps_page.dart';
 import '../../providers/simple_auth_provider.dart';
+import '../Profile/profile_screen.dart';
+import '../FaultReport/fault_reports_screen.dart';
+import '../../services/artisan_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,7 +23,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> 
-    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   
   @override
   bool get wantKeepAlive => true; // الحفاظ على الحالة
@@ -38,12 +40,132 @@ class _HomeScreenState extends State<HomeScreen>
   List<CraftModel> _realCrafts = [];
   bool _isLoadingCrafts = true;
   List<CraftCategory> _realCraftCategories = [];
+  // خريطة لتخزين عدد الحرفيين لكل حرفة
+  Map<String, int> _craftArtisanCounts = {};
+  
+  // متغير لتتبع آخر وقت تم فيه تحديث الموقع لتجنب التحديثات المتكررة
+  DateTime? _lastLocationUpdate;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeAnimations();
     _loadRealArtisans();
+    // تحديث موقع الحرفي بعد تهيئة الواجهة مع تأخير قصير للتأكد من تحميل بيانات المستخدم
+    // إعادة تعيين آخر تحديث للتأكد من التحديث عند فتح التطبيق
+    _lastLocationUpdate = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted) {
+          print('🔄 initState - تحديث موقع الحرفي عند فتح التطبيق (forceUpdate: true)');
+          _updateArtisanLocationIfNeeded(forceUpdate: true);
+        }
+      });
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // تحديث الموقع عند العودة إلى التطبيق (resume) أو عند فتحه
+    if (state == AppLifecycleState.resumed) {
+      print('🔄 التطبيق عاد إلى المقدمة - تحديث موقع الحرفي (forceUpdate: true)');
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _updateArtisanLocationIfNeeded(forceUpdate: true);
+        }
+      });
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // تحديث الموقع عند فتح الصفحة (لكن مع تجنب التحديثات المتكررة خلال 30 ثانية)
+    // لكن فقط إذا كانت هذه أول مرة أو مر وقت كافٍ
+    final shouldUpdate = _lastLocationUpdate == null || 
+        DateTime.now().difference(_lastLocationUpdate!) > const Duration(seconds: 30);
+    
+    if (shouldUpdate) {
+      print('🔄 didChangeDependencies - التحقق من تحديث موقع الحرفي');
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted) {
+          _updateArtisanLocationIfNeeded();
+        }
+      });
+    }
+  }
+
+
+  // تحديث موقع الحرفي عند فتح التطبيق
+  Future<void> _updateArtisanLocationIfNeeded({bool forceUpdate = false}) async {
+    if (!mounted) return;
+    
+    try {
+      print('🔄 التحقق من تحديث موقع الحرفي... (forceUpdate: $forceUpdate)');
+      
+      // التحقق من الوقت منذ آخر تحديث (ما لم يكن forceUpdate = true)
+      if (!forceUpdate && _lastLocationUpdate != null) {
+        final timeSinceLastUpdate = DateTime.now().difference(_lastLocationUpdate!);
+        if (timeSinceLastUpdate < const Duration(seconds: 30)) {
+          print('⏭️ تم التحديث مؤخراً (${timeSinceLastUpdate.inSeconds} ثانية مضت)، تخطي التحديث');
+          return;
+        }
+      }
+      
+      final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      print('👤 المستخدم الحالي: ${currentUser?.email}');
+      print('👤 نوع المستخدم: ${currentUser?.userType}');
+      print('👤 معرف الحرفي: ${currentUser?.artisanId}');
+
+      // التحقق من أن المستخدم مسجل دخول وأنه حرفي
+      if (currentUser == null) {
+        print('⚠️ لا يوجد مستخدم مسجل دخول');
+        return;
+      }
+
+      if (currentUser.userType != 'artisan') {
+        print('ℹ️ المستخدم ليس حرفي، لا حاجة لتحديث الموقع');
+        return;
+      }
+
+      final artisanService = ArtisanService();
+      String? artisanIdToUpdate;
+
+      // محاولة استخدام artisanId أولاً
+      if (currentUser.artisanId != null && currentUser.artisanId!.isNotEmpty) {
+        artisanIdToUpdate = currentUser.artisanId;
+        print('📍 استخدام artisanId: $artisanIdToUpdate');
+      } else {
+        // إذا لم يكن artisanId موجوداً، جرب البحث باستخدام userId
+        print('🔄 artisanId غير موجود، البحث باستخدام userId: ${currentUser.id}');
+        final artisan = await artisanService.getArtisanByUserId(currentUser.id);
+        if (artisan != null) {
+          artisanIdToUpdate = artisan.id;
+          print('✅ تم العثور على الحرفي: $artisanIdToUpdate');
+        } else {
+          print('⚠️ لم يتم العثور على الحرفي');
+          return;
+        }
+      }
+
+      if (artisanIdToUpdate != null) {
+        // تحديث موقع الحرفي في Firebase
+        await artisanService.updateArtisanLocation(artisanIdToUpdate);
+        // تحديث وقت آخر تحديث
+        _lastLocationUpdate = DateTime.now();
+        print('✅ تم تحديث وقت آخر تحديث: $_lastLocationUpdate');
+      } else {
+        print('⚠️ لا يوجد معرف حرفي متاح لتحديث الموقع');
+      }
+    } catch (e, stackTrace) {
+      print('❌ خطأ في تحديث موقع الحرفي: $e');
+      print('❌ Stack trace: $stackTrace');
+      // لا نوقف التطبيق إذا فشل تحديث الموقع
+    }
   }
 
   void _initializeAnimations() {
@@ -70,32 +192,48 @@ class _HomeScreenState extends State<HomeScreen>
       final artisanProvider = Provider.of<ArtisanProvider>(context, listen: false);
       await artisanProvider.loadAllArtisans();
 
+      print('📊 عدد الحرفيين المحملين: ${artisanProvider.artisans.length}');
+
       // تحويل بيانات الحرفيين الحقيقيين إلى CraftModel
       final craftsMap = <String, List<dynamic>>{};
       
       for (final artisan in artisanProvider.artisans) {
-        if (!craftsMap.containsKey(artisan.craftType)) {
-          craftsMap[artisan.craftType] = [];
+        // التأكد من أن craftType موجود وليس فارغاً
+        final craftType = artisan.craftType.isNotEmpty ? artisan.craftType : 'unknown';
+        
+        if (!craftsMap.containsKey(craftType)) {
+          craftsMap[craftType] = [];
         }
-        craftsMap[artisan.craftType]!.add(artisan);
+        craftsMap[craftType]!.add(artisan);
       }
 
-      _realCrafts = craftsMap.entries.map((entry) {
-        final artisans = entry.value as List;
-        final averageRating = artisans.fold<double>(
-          0.0, 
-          (sum, artisan) => sum + (artisan.rating ?? 0.0)
-        ) / artisans.length;
+      print('📊 عدد أنواع الحرف: ${craftsMap.length}');
+      craftsMap.forEach((key, value) {
+        print('  - $key: ${value.length} حرفي');
+      });
 
+      // حفظ عدد الحرفيين لكل حرفة
+      _craftArtisanCounts = {};
+      for (final entry in craftsMap.entries) {
+        _craftArtisanCounts[entry.key] = entry.value.length;
+      }
+
+      // إنشاء CraftModel باستخدام البنية الصحيحة
+      _realCrafts = craftsMap.entries.map((entry) {
+        final craftType = entry.key;
+        final translations = <String, String>{
+          'ar': _getCraftName(craftType),
+          'en': _getCraftNameEn(craftType),
+        };
+        
         return CraftModel(
-          id: entry.key,
-          name: _getCraftName(entry.key),
-          nameKey: entry.key,
-          iconPath: '',
-          description: _getCraftDescription(entry.key),
-          artisanCount: artisans.length,
-          category: _getCraftCategory(entry.key),
-          averageRating: averageRating.isNaN ? 0.0 : averageRating,
+          id: craftType,
+          value: craftType,
+          translations: translations,
+          order: _getCraftOrder(craftType),
+          isActive: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
         );
       }).toList();
 
@@ -108,20 +246,21 @@ class _HomeScreenState extends State<HomeScreen>
           count: artisanProvider.artisans.length,
         ),
         ...craftsMap.entries.map((entry) {
-          final artisans = entry.value as List;
           return CraftCategory(
             id: entry.key,
             nameKey: entry.key,
             icon: _getCraftIcon(entry.key),
-            count: artisans.length,
+            count: entry.value.length,
           );
-        }).toList(),
+        }),
       ];
 
       setState(() {
         _isLoadingCrafts = false;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ خطأ في تحميل الحرفيين: $e');
+      print('📍 Stack trace: $stackTrace');
       setState(() {
         _isLoadingCrafts = false;
       });
@@ -150,43 +289,75 @@ class _HomeScreenState extends State<HomeScreen>
         return 'صباغ';
       case 'mechanic':
         return 'ميكانيكي';
+      case 'hvac':
+        return 'تكييف';
+      case 'satellite':
+        return 'ستالايت';
+      case 'internet':
+        return 'إنترنت';
+      case 'tiler':
+        return 'بلاط';
+      case 'locksmith':
+        return 'أقفال';
       default:
         return craftType;
     }
   }
 
-  String _getCraftDescription(String craftType) {
+  String _getCraftNameEn(String craftType) {
     switch (craftType) {
       case 'carpenter':
-        return 'أعمال النجارة وتفصيل الأثاث';
+        return 'Carpenter';
       case 'electrician':
-        return 'تركيب وصيانة الأنظمة الكهربائية';
+        return 'Electrician';
       case 'plumber':
-        return 'خدمات السباكة والصيانة';
+        return 'Plumber';
       case 'painter':
-        return 'الدهانات الداخلية والخارجية';
+        return 'Painter';
       case 'mechanic':
-        return 'إصلاح وصيانة السيارات';
+        return 'Mechanic';
+      case 'hvac':
+        return 'HVAC';
+      case 'satellite':
+        return 'Satellite';
+      case 'internet':
+        return 'Internet';
+      case 'tiler':
+        return 'Tiler';
+      case 'locksmith':
+        return 'Locksmith';
       default:
-        return 'خدمات متنوعة';
+        return craftType;
     }
   }
 
-  String _getCraftCategory(String craftType) {
+  int _getCraftOrder(String craftType) {
     switch (craftType) {
       case 'carpenter':
-        return 'construction';
+        return 1;
       case 'electrician':
+        return 2;
       case 'plumber':
-        return 'utilities';
+        return 3;
       case 'painter':
-        return 'decoration';
+        return 4;
       case 'mechanic':
-        return 'automotive';
+        return 5;
+      case 'hvac':
+        return 6;
+      case 'satellite':
+        return 7;
+      case 'internet':
+        return 8;
+      case 'tiler':
+        return 9;
+      case 'locksmith':
+        return 10;
       default:
-        return 'general';
+        return 99;
     }
   }
+
 
   static IconData _getCraftIcon(String craft) {
     switch (craft) {
@@ -200,6 +371,16 @@ class _HomeScreenState extends State<HomeScreen>
         return Icons.brush;
       case 'mechanic':
         return Icons.build_circle;
+      case 'hvac':
+        return Icons.ac_unit;
+      case 'satellite':
+        return Icons.satellite;
+      case 'internet':
+        return Icons.wifi;
+      case 'tiler':
+        return Icons.square_foot;
+      case 'locksmith':
+        return Icons.lock;
       case 'tailor':
         return Icons.design_services;
       case 'blacksmith':
@@ -217,6 +398,17 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _onBottomNavTapped(int index) {
     if (index != _currentIndex) {
+      final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+      
+      // فحص تسجيل الدخول عند الضغط على Profile (index 3) أو التقارير (index 4)
+      if (index == 3 || index == 4) {
+        if (!authProvider.isLoggedIn || authProvider.currentUser == null) {
+          // توجيه المستخدم إلى صفحة تسجيل الدخول
+          context.push('/login');
+          return;
+        }
+      }
+      
       _pageController.animateToPage(
         index,
         duration: AppConstants.animationDuration,
@@ -225,17 +417,14 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _onCategorySelected(int index) {
-    setState(() {
-      _selectedCategoryIndex = index;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context); // مطلوب لـ AutomaticKeepAliveClientMixin
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
     return Scaffold(
+      backgroundColor: isDarkMode ? Colors.grey[900] : Colors.grey[300],
+      //appBar: _buildAppBar(),
       body: PageView(
         controller: _pageController,
         physics: const NeverScrollableScrollPhysics(), // تعطيل السحب
@@ -243,13 +432,37 @@ class _HomeScreenState extends State<HomeScreen>
           setState(() {
             _currentIndex = index;
           });
+          // تحديث الموقع عند العودة إلى صفحة Home (index 0)
+          if (index == 0) {
+            print('🔄 العودة إلى صفحة Home - تحديث موقع الحرفي');
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) {
+                _updateArtisanLocationIfNeeded(forceUpdate: false);
+              }
+            });
+          }
         },
         children: [
-          _buildHomePage(),
+          Consumer<SimpleAuthProvider>(
+            builder: (context, authProvider, _) {
+              // فحص نوع المستخدم: حرفي أم مستخدم عادي
+              final isArtisan = authProvider.isLoggedIn && 
+                               authProvider.currentUser != null && 
+                               authProvider.currentUser!.userType == 'artisan';
+              
+              if (isArtisan) {
+                // إذا كان المستخدم حرفي
+                return FaultReportsScreen();
+              } else {
+                // إذا كان المستخدم عادي
+                return _buildHomePage();
+              }
+            },
+          ),
           const ChatPage(),
           const CompleteMapsPage(),
-          _buildPlaceholderPage('Profile'),
-          _buildPlaceholderPage('Submit Request'),
+          const FaultReportsScreen(),
+          const ProfileScreen(),
         ],
       ),
       bottomNavigationBar: _buildBottomNavigation(),
@@ -258,6 +471,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _bottomNavAnimationController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -275,6 +489,36 @@ class _HomeScreenState extends State<HomeScreen>
           _buildSliverCraftsList(),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+          
+          // فحص تسجيل الدخول
+          if (!authProvider.isLoggedIn || authProvider.currentUser == null) {
+            // توجيه المستخدم إلى صفحة تسجيل الدخول
+            context.push('/login');
+            return;
+          }
+          
+          // إذا كان مسجل دخول، انتقل إلى صفحة رفع المشكلة
+          context.push('/problem-report-stepper');
+        },
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.camera_alt),
+        label: Text(
+          AppLocalizations.of(context)?.translate('problem_picture') ?? 'صورة المشكلة',
+          style: TextStyle(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -352,7 +596,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 return Transform.translate(
                                   offset: value,
                                   child: Text(
-                                    'مرحباً بك',
+                                    AppLocalizations.of(context)?.translate('welcome_greeting') ?? 'مرحباً بك',
                                     style: TextStyle(
                                       fontSize: 16.sp,
                                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
@@ -370,7 +614,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 return Transform.translate(
                                   offset: value,
                                   child: Text(
-                                    'ابحث عن الحرفي المناسب',
+                                    AppLocalizations.of(context)?.translate('find_suitable_artisan') ?? 'ابحث عن الحرفي المناسب',
                                     style: TextStyle(
                                       fontSize: 20.sp,
                                       fontWeight: FontWeight.bold,
@@ -383,29 +627,22 @@ class _HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
-                      TweenAnimationBuilder<double>(
-                        duration: const Duration(milliseconds: 1000),
-                        tween: Tween(begin: 0.0, end: 1.0),
-                        builder: (context, value, child) {
-                          return Transform.scale(
-                            scale: value,
-                            child: IconButton(
-                              onPressed: () {
-                                // TODO: إعدادات
-                              },
-                              icon: Container(
-                                padding: EdgeInsets.all(8.w),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12.r),
-                                ),
-                                child: Icon(
-                                  Icons.settings_rounded,
-                                  color: Theme.of(context).colorScheme.primary,
-                                  size: 20.w,
-                                ),
-                              ),
+                      // زر المفضلة
+                      Consumer<SimpleAuthProvider>(
+                        builder: (context, authProvider, _) {
+                          if (!authProvider.isLoggedIn) {
+                            return const SizedBox.shrink();
+                          }
+                          return IconButton(
+                            onPressed: () {
+                              context.push('/favorites');
+                            },
+                            icon: Icon(
+                              Icons.favorite_rounded,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 24.w,
                             ),
+                            tooltip: 'المفضلة',
                           );
                         },
                       ),
@@ -430,99 +667,63 @@ class _HomeScreenState extends State<HomeScreen>
             offset: Offset(0, 30 * (1 - value)),
             child: Opacity(
               opacity: value,
-              child: Container(
-                margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16.r),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.search_rounded,
-                      color: Theme.of(context).colorScheme.outline,
-                      size: 20.w,
-                    ),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: Text(
-                        'ابحث عن حرفي أو خدمة...',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: EdgeInsets.all(6.w),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                      child: Icon(
-                        Icons.tune_rounded,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 16.w,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSliverCategoryFilter() {
-    return SliverToBoxAdapter(
-      child: TweenAnimationBuilder<double>(
-        duration: const Duration(milliseconds: 800),
-        tween: Tween(begin: 0.0, end: 1.0),
-        builder: (context, value, child) {
-          return Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: Opacity(
-              opacity: value,
-              child: Container(
-                height: 120.h,
-                margin: EdgeInsets.only(top: 10.h),
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  physics: PerformanceHelper.optimizedScrollPhysics,
-                  padding: EdgeInsets.symmetric(horizontal: 16.w),
-                  itemCount: _realCraftCategories.length,
-                  cacheExtent: PerformanceHelper.defaultCacheExtent.toDouble(),
-                  itemBuilder: (context, index) {
-                    final category = _realCraftCategories[index];
-                    final isSelected = _selectedCategoryIndex == index;
-                    
-                    return TweenAnimationBuilder<double>(
-                      duration: Duration(milliseconds: 200 + (index * 100)),
-                      tween: Tween(begin: 0.0, end: 1.0),
-                      builder: (context, animValue, child) {
-                        return Transform.scale(
-                          scale: 0.8 + (0.2 * animValue),
-                          child: Opacity(
-                            opacity: animValue,
-                            child: _buildCategoryCard(category, index, isSelected),
-                          ),
-                        );
-                      },
-                    );
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    // التنقل إلى صفحة البحث
+                    context.push('/search');
                   },
+                  borderRadius: BorderRadius.circular(16.r),
+                  child: Container(
+                    margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
+                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(16.r),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search_rounded,
+                          color: Theme.of(context).colorScheme.outline,
+                          size: 20.w,
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Text(
+                            AppLocalizations.of(context)?.translate('search_artisan_or_service') ?? 'ابحث عن حرفي أو خدمة...',
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: EdgeInsets.all(6.w),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8.r),
+                          ),
+                          child: Icon(
+                            Icons.tune_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 16.w,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -532,103 +733,47 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildCategoryCard(CraftCategory category, int index, bool isSelected) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedCategoryIndex = index;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: 100.w,
-        margin: EdgeInsets.only(right: 12.w),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primary,
-                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: isSelected ? null : Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
-          border: Border.all(
-            color: isSelected 
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: (isSelected 
-                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
-                  : Colors.black.withValues(alpha: 0.05)),
-              blurRadius: isSelected ? 12 : 6,
-              offset: Offset(0, isSelected ? 4 : 2),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: EdgeInsets.all(isSelected ? 12.w : 10.w),
-              decoration: BoxDecoration(
-                color: (isSelected ? Colors.white.withValues(alpha: 0.2) : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)),
-                borderRadius: BorderRadius.circular(12.r),
-              ),
-              child: Icon(
-                category.icon,
-                size: isSelected ? 28.w : 24.w,
-                color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              AppLocalizations.of(context)?.translate(category.nameKey) ?? '',
-              style: TextStyle(
-                fontSize: 12.sp,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (category.count > 0) ...[
-              SizedBox(height: 4.h),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
-                decoration: BoxDecoration(
-                  color: (isSelected ? Colors.white.withValues(alpha: 0.2) : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)),
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-                child: Text(
-                  '${category.count}',
-                  style: TextStyle(
-                    fontSize: 10.sp,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildSliverCraftsList() {
+    if (_isLoadingCrafts) {
+      return SliverFillRemaining(
+        child: Center(
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+      );
+    }
+
     final filteredCrafts = _selectedCategoryIndex == 0 
         ? _realCrafts 
         : _realCrafts.where((craft) => 
             craft.id == _realCraftCategories[_selectedCategoryIndex].id).toList();
+
+    if (filteredCrafts.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.handyman_outlined,
+                size: 64.w,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+              SizedBox(height: 16.h),
+              Text(
+                AppLocalizations.of(context)?.translate('no_crafts_available') ?? 'لا توجد حرف متاحة',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return SliverGrid(
       delegate: SliverChildBuilderDelegate(
@@ -660,14 +805,15 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildEnhancedCraftCard(CraftModel craft, int index) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: EdgeInsets.only(bottom: 16.h),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDarkMode ? Colors.grey[800] : Colors.white,
         borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -719,7 +865,7 @@ class _HomeScreenState extends State<HomeScreen>
 
                 // Craft name
                 Text(
-                  AppLocalizations.of(context)?.translate(craft.nameKey) ?? '',
+                  craft.getDisplayName(Localizations.localeOf(context).languageCode),
                   style: TextStyle(
                     fontSize: 16.sp,
                     fontWeight: FontWeight.bold,
@@ -740,7 +886,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                     SizedBox(width: 4.w),
                     Text(
-                      '${craft.artisanCount} حرفي',
+                      '${_craftArtisanCounts[craft.id] ?? 0} ${AppLocalizations.of(context)?.translate('artisan') ?? 'حرفي'}',
                       style: TextStyle(
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w600,
@@ -795,13 +941,16 @@ class _HomeScreenState extends State<HomeScreen>
             width: 40.w,
             height: 40.h,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
               borderRadius: BorderRadius.circular(12.r),
             ),
-            child: Icon(
-              Icons.handyman_rounded,
-              color: Colors.white,
-              size: 24.w,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12.r),
+              child: Image.asset(
+                Assets.iconsLogo,
+                width: 40.w,
+                height: 40.h,
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           SizedBox(width: 12.w),
@@ -815,375 +964,84 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ],
       ),
-      actions: [
-        IconButton(
-          onPressed: () {
-            context.push('/artisan-registration');
-          },
-          icon: Icon(
-            Icons.person_add_rounded,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          tooltip: AppLocalizations.of(context)?.translate('register_as_artisan') ?? 'تسجيل كحرفي',
-        ),
-        Consumer<SimpleAuthProvider>(
-          builder: (context, authProvider, child) {
-            if (authProvider.currentUser?.userType == 'artisan') {
-              return IconButton(
-                onPressed: () {
-                  context.push('/artisan-profile');
-                },
-                icon: Icon(
-                  Icons.person_rounded,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                tooltip: AppLocalizations.of(context)?.translate('artisan_profile') ?? 'الملف الشخصي',
-              );
-            }
-            return SizedBox.shrink();
-          },
-        ),
-      ],
     );
   }
 
-  Widget _buildCategoryFilter() {
-    return Container(
-      height: 110.h,
-      padding: EdgeInsets.symmetric(vertical: AppConstants.smallPadding),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _realCraftCategories.length,
-        padding: EdgeInsets.symmetric(horizontal: AppConstants.padding),
-        itemBuilder: (context, index) {
-          return AnimationConfiguration.staggeredList(
-            position: index,
-            duration: const Duration(milliseconds: 375),
-            child: SlideAnimation(
-              horizontalOffset: 50.0,
-              child: FadeInAnimation(
-                child: Padding(
-                  padding: EdgeInsets.only(right: AppConstants.smallPadding),
-                  child: _buildCategoryCardOld(_realCraftCategories[index], index),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCategoryCardOld(CraftCategory category, int index) {
-    final isSelected = _selectedCategoryIndex == index;
-    
-    return GestureDetector(
-      onTap: () => _onCategorySelected(index),
-      child: AnimatedContainer(
-        duration: AppConstants.animationDuration,
-        width: 80.w,
-        padding: EdgeInsets.all(AppConstants.smallPadding),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: (isSelected 
-                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)
-                  : Colors.black.withValues(alpha: 0.05)),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: EdgeInsets.all(AppConstants.smallPadding),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.white.withValues(alpha: 0.15)
-                    : Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12.r),
-              ),
-              child: Icon(
-                category.icon,
-                color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
-                size: 22.w,
-              ),
-            ),
-            SizedBox(height: 6.h),
-            Text(
-              AppLocalizations.of(context)?.translate(category.nameKey) ?? '',
-              style: TextStyle(
-                fontSize: 11.sp,
-                color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCraftsList() {
-    return Container(
-      padding: EdgeInsets.all(AppConstants.padding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _selectedCategoryIndex == 0
-                    ? AppLocalizations.of(context)?.translate('all_crafts') ?? ''
-                    : AppLocalizations.of(context)?.translate(_realCraftCategories[_selectedCategoryIndex].nameKey) ?? '',
-                style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              TextButton(
-                onPressed: () {},
-                child: Text(
-                  AppLocalizations.of(context)?.translate('view_all') ?? '',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: AppConstants.smallPadding),
-          Expanded(
-            child: AnimationLimiter(
-              child: ListView.builder(
-                itemCount: _realCrafts.length,
-                itemBuilder: (context, index) {
-                  return AnimationConfiguration.staggeredList(
-                    position: index,
-                    duration: const Duration(milliseconds: 375),
-                    child: SlideAnimation(
-                      verticalOffset: 50.0,
-                      child: FadeInAnimation(
-                        child: Padding(
-                          padding: EdgeInsets.only(bottom: AppConstants.smallPadding),
-                          child: _buildCraftCard(_realCrafts[index]),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCraftCard(CraftModel craft) {
-    return Card(
-      elevation: AppConstants.cardElevation,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-      ),
-      child: InkWell(
-                          onTap: () {
-                    context.push('/craft-details/${craft.id}');
-                  },
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-        child: Padding(
-          padding: EdgeInsets.all(AppConstants.padding),
-          child: Row(
-            children: [
-              Container(
-                width: 60.w,
-                height: 60.h,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-                ),
-                child: Icon(
-                  _getCraftIcon(craft.id),
-                  size: 30.w,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              SizedBox(width: AppConstants.padding),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      AppLocalizations.of(context)?.translate(craft.nameKey) ?? '',
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      craft.description,
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(height: 8.h),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.people_rounded,
-                          size: 16.w,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        SizedBox(width: 4.w),
-                        Text(
-                          '${craft.artisanCount} ${AppLocalizations.of(context)?.translate('artisans_available') ?? ''}',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Spacer(),
-                        ElevatedButton(
-                          onPressed: () {
-                            context.push('/artisan-list/${craft.id}/${AppLocalizations.of(context)?.translate(craft.nameKey) ?? craft.name}');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.primary,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.r),
-                            ),
-                          ),
-                          child: Text(
-                            AppLocalizations.of(context)?.translate('view_artisans') ?? 'عرض الحرفيين',
-                            style: TextStyle(
-                              fontSize: 10.sp,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16.w,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPlaceholderPage(String title) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.construction_rounded,
-              size: 80,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '$title Coming Soon',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'This feature will be available in Phase 2',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildBottomNavigation() {
-    final navItems = [
-      BottomNavItem(icon: Icons.home_filled, labelKey: 'home'),
-      BottomNavItem(icon: Icons.chat_bubble_rounded, labelKey: 'chat'),
-      BottomNavItem(icon: Icons.location_on_rounded, labelKey: 'maps'),
-      BottomNavItem(icon: Icons.person_2_rounded, labelKey: 'profile'),
-      BottomNavItem(icon: Icons.work_rounded, labelKey: 'submit_request'),
-    ];
+    return Consumer<SimpleAuthProvider>(
+      builder: (context, authProvider, _) {
+        final isArtisan = authProvider.isLoggedIn && 
+                         authProvider.currentUser != null && 
+                         authProvider.currentUser!.userType == 'artisan';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+        // قائمة الأيقونات الكاملة
+        final allNavItems = [
+          BottomNavItem(icon: Icons.home_filled, labelKey: 'home'),
+          BottomNavItem(icon: Icons.chat_bubble_rounded, labelKey: 'chat'),
+          BottomNavItem(icon: Icons.location_on_rounded, labelKey: 'maps'),
+          BottomNavItem(icon: Icons.assignment_rounded, labelKey: 'fault_reports'),
+          BottomNavItem(icon: Icons.person_2_rounded, labelKey: 'profile'),
+        ];
+
+        // للحرفيين: فقط Home و Maps
+        final artisanNavItems = [
+          BottomNavItem(icon: Icons.chat_bubble_rounded, labelKey: 'chat'),
+          BottomNavItem(icon: Icons.assignment_rounded, labelKey: 'fault_reports'),
+          BottomNavItem(icon: Icons.person_2_rounded, labelKey: 'profile'),
+        ];
+
+        final navItems = isArtisan ? artisanNavItems : allNavItems;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: SafeArea(
-        child: Container(
-          height: 70.h,
-          padding: EdgeInsets.symmetric(horizontal: AppConstants.smallPadding),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(
-              navItems.length,
-              (index) => _buildNavItem(navItems[index], index),
+          child: SafeArea(
+            child: Container(
+              height: 70.h,
+              padding: EdgeInsets.symmetric(horizontal: AppConstants.smallPadding),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: List.generate(
+                  navItems.length,
+                  (index) => _buildNavItem(navItems[index], index, isArtisan),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildNavItem(BottomNavItem item, int index) {
-    final isSelected = _currentIndex == index;
+  Widget _buildNavItem(BottomNavItem item, int index, bool isArtisan) {
+    // حساب الفهرس الفعلي في PageView
+    int actualIndex;
+    if (isArtisan) {
+      // للحرفيين: index 0 = Home (0), index 1 = Maps (2)
+      actualIndex = index == 0 ? 1 :  index == 1 ? 3 : 4;
+    } else {
+      // للمستخدمين العاديين: الفهرس كما هو
+      actualIndex = index;
+    }
+    
+    final isSelected = _currentIndex == actualIndex;
     
     return GestureDetector(
-      onTap: () => _onBottomNavTapped(index),
+      onTap: () => _onBottomNavTapped(actualIndex),
       child: AnimatedContainer(
         duration: AppConstants.animationDuration,
         padding: EdgeInsets.symmetric(
           horizontal: isSelected ? 16.w : 12.w,
-          vertical: 8.h,
+          vertical: 4.h,
         ),
         decoration: BoxDecoration(
           color: isSelected
@@ -1198,7 +1056,7 @@ class _HomeScreenState extends State<HomeScreen>
               duration: AppConstants.animationDuration,
               child: Icon(
                 item.icon,
-                size: isSelected ? 26.w : 24.w,
+                size: isSelected ? 22.w : 20.w,
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.outline,
@@ -1208,7 +1066,7 @@ class _HomeScreenState extends State<HomeScreen>
             AnimatedDefaultTextStyle(
               duration: AppConstants.animationDuration,
               style: TextStyle(
-                fontSize: isSelected ? 10.sp : 9.sp,
+                fontSize: isSelected ? 8.sp : 7.sp,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
@@ -1226,115 +1084,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildCraftsSection() {
-    final crafts = _isLoadingCrafts
-        ? _realCrafts
-        : _realCrafts.where((craft) =>
-            _selectedCategoryIndex == 0 || 
-            craft.id == _realCraftCategories[_selectedCategoryIndex].id
-          ).toList();
 
-    if (crafts.isEmpty && !_isLoadingCrafts) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.people_outline,
-              size: 64.w,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            SizedBox(height: 16.h),
-            Text(
-              AppLocalizations.of(context)?.translate('no_artisans_found') ?? 'لم يتم العثور على حرفيين',
-              style: TextStyle(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'لا يوجد حرفيين مسجلين في هذه الفئة حالياً',
-              style: TextStyle(
-                fontSize: 14.sp,
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.7),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppConstants.padding),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                AppLocalizations.of(context)?.translate('craft_categories') ?? 'فئات الحرف',
-                style: TextStyle(
-                  fontSize: 20.sp,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  context.push('/search');
-                },
-                child: Text(
-                  AppLocalizations.of(context)?.translate('view_all') ?? 'عرض الكل',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: 16.h),
-        if (_isLoadingCrafts)
-          Center(
-            child: Padding(
-              padding: EdgeInsets.all(32.h),
-              child: CircularProgressIndicator(
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          )
-        else
-          Container(
-            height: 200.h,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: AppConstants.padding),
-              itemCount: crafts.length,
-              itemBuilder: (context, index) {
-                return AnimationConfiguration.staggeredList(
-                  position: index,
-                  duration: const Duration(milliseconds: 375),
-                  child: SlideAnimation(
-                    horizontalOffset: 50.0,
-                    child: FadeInAnimation(
-                      child: Padding(
-                        padding: EdgeInsets.only(right: AppConstants.padding),
-                        child: _buildCraftCard(crafts[index]),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
 }
 
 class CraftCategory {
@@ -1360,3 +1110,4 @@ class BottomNavItem {
     required this.labelKey,
   });
 } 
+

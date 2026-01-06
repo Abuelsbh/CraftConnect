@@ -1,14 +1,23 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../Models/artisan_model.dart';
+import '../../providers/simple_auth_provider.dart';
+import '../../providers/chat_provider.dart';
+import '../../providers/favorite_provider.dart';
 
 class CompleteMapsPage extends StatefulWidget {
   const CompleteMapsPage({super.key});
@@ -20,10 +29,10 @@ class CompleteMapsPage extends StatefulWidget {
 class _CompleteMapsPageState extends State<CompleteMapsPage> {
   final Completer<GoogleMapController> _controller = Completer<GoogleMapController>();
   
-  // موقع الرياض الافتراضي
+  // موقع الكويت الافتراضي
   static const CameraPosition _defaultLocation = CameraPosition(
-    target: LatLng(24.7136, 46.6753),
-    zoom: 12.0,
+    target: LatLng(29.3759, 47.9774),
+    zoom: 6.0,
   );
 
   CameraPosition _currentPosition = _defaultLocation;
@@ -42,6 +51,11 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
     'plumber',
     'painter',
     'mechanic',
+    'hvac',
+    'satellite',
+    'internet',
+    'tiler',
+    'locksmith',
   ];
 
   @override
@@ -72,7 +86,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
       }
       
       // إنشاء العلامات على الخريطة
-      _createMarkers();
+      await _createMarkers();
       
       setState(() {
         _isLoading = false;
@@ -81,13 +95,13 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'خطأ في تحميل الخريطة: ${e.toString()}';
+        _errorMessage = '${AppLocalizations.of(context)?.translate('location_error') ?? 'خطأ في تحميل الخريطة'}: ${e.toString()}';
       });
       
       // حتى لو حدث خطأ، نعرض البيانات مع الموقع الافتراضي
       _userLocation = _defaultLocation.target;
       await _loadArtisansData();
-      _createMarkers();
+      await _createMarkers();
     }
   }
 
@@ -108,7 +122,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                                    permission == LocationPermission.always);
     } catch (e) {
       _locationPermissionGranted = false;
-      print('خطأ في فحص صلاحيات الموقع: $e');
+      print('${AppLocalizations.of(context)?.translate('location_permission_check_error') ?? 'خطأ في فحص صلاحيات الموقع'}: $e');
     }
   }
 
@@ -119,14 +133,14 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 15),
-      );
+      ); 
 
       _userLocation = LatLng(position.latitude, position.longitude);
       
       setState(() {
         _currentPosition = CameraPosition(
           target: _userLocation!,
-          zoom: 14.0,
+          zoom: 16.0, // تكبير الخريطة على الموقع
         );
       });
 
@@ -138,7 +152,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         );
       }
     } catch (e) {
-      print('فشل في الحصول على الموقع: $e');
+      print('${AppLocalizations.of(context)?.translate('failed_to_get_current_location') ?? 'فشل في الحصول على الموقع'}: $e');
       // استخدام الموقع الافتراضي عند الفشل
       _userLocation = _defaultLocation.target;
     }
@@ -150,9 +164,10 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         _isLoading = true;
       });
 
-      // جلب جميع الحرفيين من Firebase
+      // جلب الحرفيين المتاحين فقط من Firebase
       final QuerySnapshot querySnapshot = await FirebaseFirestore.instance
           .collection('artisans')
+          .where('isAvailable', isEqualTo: true)
           .get();
 
       final List<ArtisanModel> artisans = [];
@@ -172,30 +187,79 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         _isLoading = false;
       });
 
-      print('تم تحميل ${artisans.length} حرفي من Firebase');
+      print('${AppLocalizations.of(context)?.translate('artisans_loaded') ?? 'تم تحميل'} ${artisans.length} ${AppLocalizations.of(context)?.translate('artisan') ?? 'حرفي'} ${AppLocalizations.of(context)?.translate('from_firebase') ?? 'من Firebase'}');
       
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'فشل في تحميل بيانات الحرفيين: $e';
+        _errorMessage = '${AppLocalizations.of(context)?.translate('failed_to_load_artisans') ?? 'فشل في تحميل بيانات الحرفيين'}: $e';
       });
       print('خطأ في تحميل بيانات الحرفيين: $e');
     }
   }
 
-  void _createMarkers() {
+  // دالة لإنشاء أيقونة مخصصة بدلاً من الدبوس (الأيقونة فقط بدون خلفية)
+  Future<BitmapDescriptor> _createCustomMarkerIcon({
+    required Color color,
+    IconData? icon,
+    double size = 50.0, // تصغير حجم الأيقونة
+  }) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+
+    // رسم الأيقونة فقط بدون خلفية
+    if (icon != null) {
+      final textStyle = TextStyle(
+        fontSize: size * 0.8, // جعل الأيقونة أكبر
+        fontFamily: icon.fontFamily,
+        fontFamilyFallback: icon.fontPackage != null ? [icon.fontPackage!] : null,
+        color: color, // استخدام لون الحرفة
+        fontWeight: FontWeight.bold,
+      );
+      
+      final TextPainter textPainter = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(icon.codePoint),
+          style: textStyle,
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+      
+      // رسم الأيقونة في المنتصف
+      textPainter.paint(
+        canvas,
+        Offset(
+          (size - textPainter.width) / 2,
+          (size - textPainter.height) / 2,
+        ),
+      );
+    }
+
+    final picture = pictureRecorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
+  }
+
+  Future<void> _createMarkers() async {
     Set<Marker> markers = {};
 
-    // إضافة علامة الموقع الحالي للمستخدم
+    // إنشاء أيقونة مخصصة للموقع الحالي
     if (_userLocation != null) {
+      final customIcon = await _createCustomMarkerIcon(
+        color: Colors.blue,
+        icon: Icons.person,
+      );
+      
       markers.add(
         Marker(
           markerId: const MarkerId('user_location'),
           position: _userLocation!,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          icon: customIcon,
           infoWindow: InfoWindow(
             title: 'موقعك الحالي',
-            snippet: _locationPermissionGranted ? 'تم تحديد موقعك بدقة' : 'الموقع الافتراضي - الرياض',
+            snippet: _locationPermissionGranted ? 'تم تحديد موقعك بدقة' : 'الموقع الافتراضي - الكويت',
           ),
         ),
       );
@@ -207,6 +271,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
       final artisan = filteredArtisans[i];
       final distance = _calculateDistance(artisan);
       
+      // استخدام الدبوس القياسي بلون الحرفة
       markers.add(
         Marker(
           markerId: MarkerId(artisan.id),
@@ -267,6 +332,16 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         return BitmapDescriptor.hueGreen;
       case 'mechanic':
         return BitmapDescriptor.hueRed;
+      case 'hvac':
+        return BitmapDescriptor.hueCyan;
+      case 'satellite':
+        return BitmapDescriptor.hueMagenta;
+      case 'internet':
+        return BitmapDescriptor.hueAzure;
+      case 'tiler':
+        return BitmapDescriptor.hueRose;
+      case 'locksmith':
+        return BitmapDescriptor.hueViolet;
       default:
         return BitmapDescriptor.hueViolet;
     }
@@ -284,6 +359,16 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         return 'صباغ';
       case 'mechanic':
         return 'ميكانيكي';
+      case 'hvac':
+        return 'تكييف';
+      case 'satellite':
+        return 'ستالايت';
+      case 'internet':
+        return 'إنترنت';
+      case 'tiler':
+        return 'بلاط';
+      case 'locksmith':
+        return 'أقفال';
       default:
         return craftType;
     }
@@ -301,6 +386,16 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         return const Color(0xFF2E7D32); // أخضر غامق أنيق
       case 'mechanic':
         return const Color(0xFFD32F2F); // أحمر واضح
+      case 'hvac':
+        return const Color(0xFF00BCD4); // سماوي
+      case 'satellite':
+        return const Color(0xFF9C27B0); // بنفسجي
+      case 'internet':
+        return const Color(0xFF03A9F4); // أزرق فاتح
+      case 'tiler':
+        return const Color(0xFFE91E63); // وردي
+      case 'locksmith':
+        return const Color(0xFF7B1FA2); // بنفسجي مميز
       default:
         return const Color(0xFF7B1FA2); // بنفسجي مميز
     }
@@ -343,6 +438,8 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // زر المفضلة في أعلى اليسار
+
                     // معلومات الحرفي الأساسية
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,11 +456,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                               width: 2,
                             ),
                           ),
-                          child: Icon(
-                            _getCraftIcon(artisan.craftType),
-                            size: 40.w,
-                            color: _getCraftColor(artisan.craftType),
-                          ),
+                          child: _buildArtisanProfileImage(artisan),
                         ),
                         SizedBox(width: AppConstants.padding),
                         
@@ -457,6 +550,86 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                             ],
                           ),
                         ),
+
+                        Builder(
+                          builder: (context) {
+                            final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+                            final favoriteProvider = Provider.of<FavoriteProvider>(context, listen: false);
+                            final currentUser = authProvider.currentUser;
+
+                            // تهيئة المفضلة للمستخدم إذا كان مسجل
+                            if (currentUser != null) {
+                              favoriteProvider.initForUser(currentUser.id);
+                            }
+
+                            // التحقق من أن المستخدم الحالي ليس صاحب الحساب
+                            final bool isOwner = currentUser != null &&
+                                currentUser.artisanId != null &&
+                                currentUser.artisanId == artisan.id;
+
+                            if (isOwner || !authProvider.isLoggedIn) {
+                              return SizedBox.shrink();
+                            }
+
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Consumer<FavoriteProvider>(
+                                builder: (context, favProvider, _) {
+                                  final isFav = favProvider.isFavorite(artisan.id);
+                                  return Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: () async {
+                                        try {
+                                          final nowFav = await favProvider.toggleFavorite(artisan.id);
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                nowFav
+                                                    ? 'تمت إضافة الحرفي إلى المفضلة'
+                                                    : 'تمت إزالة الحرفي من المفضلة',
+                                              ),
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('${AppLocalizations.of(context)?.translate('favorite_updated_failed') ?? 'فشل في تحديث المفضلة'}: $e'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      borderRadius: BorderRadius.circular(20.r),
+                                      child: Container(
+                                        width: 40.w,
+                                        height: 40.w,
+                                        decoration: BoxDecoration(
+                                          color: isFav
+                                              ? Colors.red.withValues(alpha: 0.1)
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(20.r),
+                                          border: Border.all(
+                                            color: isFav ? Colors.red : Colors.grey.withValues(alpha: 0.3),
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                          color: isFav ? Colors.red : Colors.grey,
+                                          size: 24.w,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                     
@@ -464,7 +637,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                     
                     // وصف الحرفي
                     Text(
-                      'الوصف',
+                      AppLocalizations.of(context)?.translate('description_label') ?? 'الوصف',
                       style: TextStyle(
                         fontSize: 16.sp,
                         fontWeight: FontWeight.w600,
@@ -530,74 +703,202 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                     const Spacer(),
                     
                     // أزرار التواصل
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _makePhoneCall(artisan);
-                            },
-                            icon: Icon(Icons.phone_rounded, size: 18.w),
-                            label: Text(
-                              'اتصال',
-                              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                    Builder(
+                      builder: (context) {
+                        final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+                        final favoriteProvider = Provider.of<FavoriteProvider>(context, listen: false);
+                        final currentUser = authProvider.currentUser;
+                        
+                        // تهيئة المفضلة للمستخدم إذا كان مسجل
+                        if (currentUser != null) {
+                          favoriteProvider.initForUser(currentUser.id);
+                        }
+                        
+                        // التحقق من أن المستخدم الحالي ليس صاحب الحساب
+                        final bool isOwner = currentUser != null && 
+                                            currentUser.artisanId != null && 
+                                            currentUser.artisanId == artisan.id;
+                        
+                        return Column(
+                          children: [
+                            // صف الأزرار: رسالة والملف
+                            Row(
+                              children: [
+                                // زر الرسالة - يظهر فقط إذا لم يكن المستخدم صاحب الحساب
+                                if (!isOwner) ...[
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        _sendMessage(artisan);
+                                      },
+                                      icon: Icon(Icons.chat_rounded, size: 18.w),
+                                      label: Text(
+                                        'رسالة',
+                                        style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _getCraftColor(artisan.craftType).withValues(alpha: 0.8),
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: AppConstants.smallPadding),
+                                ],
+                                // زر الملف - يظهر دائماً
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      context.push('/artisan-profile/${artisan.id}');
+                                    },
+                                    icon: Icon(Icons.person_rounded, size: 18.w),
+                                    label: Text(
+                                      'الملف',
+                                      style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Theme.of(context).colorScheme.primary,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _getCraftColor(artisan.craftType),
-                              side: BorderSide(color: _getCraftColor(artisan.craftType), width: 2),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: AppConstants.smallPadding),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _sendMessage(artisan);
-                            },
-                            icon: Icon(Icons.chat_rounded, size: 18.w),
-                            label: Text(
-                              'رسالة',
-                              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _getCraftColor(artisan.craftType),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: AppConstants.smallPadding),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              context.push('/artisan-profile/${artisan.id}');
-                            },
-                            icon: Icon(Icons.person_rounded, size: 18.w),
-                            label: Text(
-                              'الملف',
-                              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Theme.of(context).colorScheme.primary,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                            ),
-                          ),
-                        ),
-                      ],
+                            // زر الاتصال - يظهر فقط إذا لم يكن المستخدم صاحب الحساب - يأخذ العرض الكامل
+                            if (!isOwner) ...[
+                              SizedBox(height: AppConstants.smallPadding),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    _makePhoneCall(artisan);
+                                  },
+                                  icon: Icon(Icons.phone_rounded, size: 18.w),
+                                  label: Text(
+                                    'اتصال',
+                                    style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _getCraftColor(artisan.craftType),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArtisanProfileImage(ArtisanModel artisan) {
+    final imageUrl = artisan.profileImageUrl;
+    
+    // التحقق من وجود الصورة
+    if (imageUrl == null || imageUrl.isEmpty || imageUrl.trim().isEmpty) {
+      return Container(
+        width: 80.w,
+        height: 80.w,
+        color: Colors.grey[200],
+        child: Icon(
+          Icons.person_rounded,
+          size: 40.w,
+          color: _getCraftColor(artisan.craftType),
+        ),
+      );
+    }
+    
+    final trimmedUrl = imageUrl.trim();
+    
+    // التحقق إذا كانت الصورة base64
+    if (trimmedUrl.startsWith('data:image') || 
+        (trimmedUrl.length > 100 && !trimmedUrl.startsWith('http'))) {
+      try {
+        String base64String = trimmedUrl;
+        if (base64String.contains(',')) {
+          base64String = base64String.split(',')[1];
+        }
+        final imageBytes = base64Decode(base64String);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(10.r),
+          child: Image.memory(
+            imageBytes,
+            width: 80.w,
+            height: 80.w,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: 80.w,
+              height: 80.w,
+              color: Colors.grey[200],
+              child: Icon(
+                Icons.person_rounded,
+                size: 40.w,
+                color: _getCraftColor(artisan.craftType),
+              ),
+            ),
+          ),
+        );
+      } catch (e) {
+        // إذا فشل فك التشفير، نعرض أيقونة افتراضية
+        return Container(
+          width: 80.w,
+          height: 80.w,
+          color: Colors.grey[200],
+          child: Icon(
+            Icons.person_rounded,
+            size: 40.w,
+            color: _getCraftColor(artisan.craftType),
+          ),
+        );
+      }
+    }
+    
+    // إذا كانت URL عادية
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10.r),
+      child: CachedNetworkImage(
+        imageUrl: trimmedUrl,
+        width: 80.w,
+        height: 80.w,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          width: 80.w,
+          height: 80.w,
+          color: Colors.grey[200],
+          child: Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _getCraftColor(artisan.craftType),
+              ),
+            ),
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          width: 80.w,
+          height: 80.w,
+          color: Colors.grey[200],
+          child: Icon(
+            Icons.person_rounded,
+            size: 40.w,
+            color: _getCraftColor(artisan.craftType),
+          ),
         ),
       ),
     );
@@ -615,37 +916,164 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         return Icons.brush; // صباغ
       case 'mechanic':
         return Icons.build_circle; // ميكانيكي
+      case 'hvac':
+        return Icons.ac_unit; // تكييف
+      case 'satellite':
+        return Icons.satellite; // ستالايت
+      case 'internet':
+        return Icons.wifi; // إنترنت
+      case 'tiler':
+        return Icons.square_foot; // بلاط
+      case 'locksmith':
+        return Icons.lock; // أقفال
       default:
         return Icons.construction; // افتراضي
     }
   }
 
-  void _makePhoneCall(ArtisanModel artisan) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('اتصال بـ ${artisan.name} - ${artisan.phone}'),
-        backgroundColor: _getCraftColor(artisan.craftType),
-        action: SnackBarAction(
-          label: 'إغلاق',
-          textColor: Colors.white,
-          onPressed: () {},
-        ),
-      ),
-    );
+  Future<void> _makePhoneCall(ArtisanModel artisan) async {
+    if (artisan.phone.isEmpty) {
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)?.translate('phone_not_available') ?? 'رقم الهاتف غير متوفر'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+          ),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $e');
+        }
+      }
+      return;
+    }
+
+    final Uri phoneUri = Uri(scheme: 'tel', path: artisan.phone);
+    
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        if (!mounted) return;
+        try {
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.of(context)?.translate('cannot_open_call_app') ?? 'لا يمكن فتح تطبيق الاتصال'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+            ),
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('Could not show snackbar: $e');
+          }
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('${AppLocalizations.of(context)?.translate('call_failed') ?? 'فشل في الاتصال'}: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+          ),
+        );
+      } catch (err) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $err');
+        }
+      }
+    }
   }
 
-  void _sendMessage(ArtisanModel artisan) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('فتح محادثة مع ${artisan.name}'),
-        backgroundColor: _getCraftColor(artisan.craftType),
-        action: SnackBarAction(
-          label: 'إغلاق',
-          textColor: Colors.white,
-          onPressed: () {},
-        ),
-      ),
-    );
+  Future<void> _sendMessage(ArtisanModel artisan) async {
+    final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+
+    // التحقق من تسجيل الدخول
+    if (!authProvider.isLoggedIn) {
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)?.translate('login_required_to_message') ?? 'يجب تسجيل الدخول لإرسال رسالة'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+            action: SnackBarAction(
+              label: 'تسجيل الدخول',
+              textColor: Colors.white,
+              onPressed: () {
+                context.push('/login');
+              },
+            ),
+          ),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $e');
+        }
+      }
+      return;
+    }
+
+    try {
+      // إنشاء غرفة دردشة مع الحرفي
+      final room = await chatProvider.createChatRoomAndReturn(artisan.id);
+
+      if (room != null) {
+        // فتح غرفة الدردشة
+        await chatProvider.openChatRoom(room.id);
+
+        if (mounted) {
+          context.push('/chat-room');
+        }
+      } else {
+        if (!mounted) return;
+        try {
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.of(context)?.translate('chat_creation_failed_error') ?? 'فشل في إنشاء المحادثة'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+            ),
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('Could not show snackbar: $e');
+          }
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('${AppLocalizations.of(context)?.translate('failed_to_open_chat') ?? 'فشل في فتح المحادثة'}: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+          ),
+        );
+      } catch (err) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $err');
+        }
+      }
+    }
   }
 
   @override
@@ -667,7 +1095,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
           IconButton(
             onPressed: () async {
               await _getCurrentLocation();
-              _createMarkers();
+              await _createMarkers();
             },
             icon: Icon(
               Icons.my_location_rounded,
@@ -813,7 +1241,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                 _initializeMap();
               },
               icon: Icon(Icons.refresh_rounded, size: 20.w),
-              label: Text('إعادة المحاولة'),
+              label: Text(AppLocalizations.of(context)?.translate('retry') ?? 'إعادة المحاولة'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
@@ -882,11 +1310,11 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                   ],
                 ),
                 selected: isSelected,
-                onSelected: (selected) {
+                onSelected: (selected) async {
                   setState(() {
                     _selectedCraftType = craftType;
                   });
-                  _createMarkers();
+                  await _createMarkers();
                 },
                 backgroundColor: isSelected ? craftColor : craftColor.withValues(alpha: 0.1),
                 selectedColor: craftColor,

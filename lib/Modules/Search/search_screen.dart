@@ -58,7 +58,15 @@ class _SearchScreenState extends State<SearchScreen> {
           return Column(
             children: [
               _buildSearchBar(appProvider),
-              if (_showFilters) _buildFilters(appProvider),
+              if (_showFilters) 
+                Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.5,
+                  ),
+                  child: SingleChildScrollView(
+                    child: _buildFilters(appProvider),
+                  ),
+                ),
               Expanded(
                 child: _buildSearchResults(appProvider),
               ),
@@ -207,7 +215,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     });
                     appProvider.resetFilters();
                   },
-                  child: Text('إعادة تعيين'),
+                  child: Text(AppLocalizations.of(context)?.translate('reset_search') ?? 'إعادة تعيين'),
                 ),
               ),
               SizedBox(width: AppConstants.smallPadding),
@@ -220,7 +228,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       _showFilters = false;
                     });
                   },
-                  child: Text('تطبيق'),
+                  child: Text(AppLocalizations.of(context)?.translate('apply') ?? 'تطبيق'),
                 ),
               ),
             ],
@@ -231,7 +239,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildCraftTypeFilter(AppProvider appProvider) {
-    final craftTypes = ['all', 'carpenter', 'electrician', 'plumber', 'painter', 'mechanic'];
+    final craftTypes = ['all', 'carpenter', 'electrician', 'plumber', 'painter', 'mechanic', 'hvac', 'satellite', 'internet', 'tiler', 'locksmith'];
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -581,7 +589,7 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           SizedBox(height: AppConstants.smallPadding),
           Text(
-            'جرب تغيير معايير البحث أو الفلاتر',
+            AppLocalizations.of(context)?.translate('try_changing_search') ?? 'جرب تغيير معايير البحث أو الفلاتر',
             style: TextStyle(
               fontSize: 14.sp,
               color: Theme.of(context).colorScheme.outline,
@@ -599,7 +607,7 @@ class _SearchScreenState extends State<SearchScreen> {
               });
               Provider.of<AppProvider>(context, listen: false).resetFilters();
             },
-            child: Text('إعادة تعيين البحث'),
+            child: Text(AppLocalizations.of(context)?.translate('reset_search_button') ?? 'إعادة تعيين البحث'),
           ),
         ],
       ),

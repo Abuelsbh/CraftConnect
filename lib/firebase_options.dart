@@ -25,14 +25,15 @@ class DefaultFirebaseOptions {
   }
 
   // PLACEHOLDER VALUES: Replace with real values from your Firebase project.
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_WEB_API_KEY',
-    appId: 'REPLACE_WITH_WEB_APP_ID',
-    messagingSenderId: 'REPLACE_WITH_SENDER_ID',
-    projectId: 'REPLACE_WITH_PROJECT_ID',
-    authDomain: 'REPLACE_WITH_AUTH_DOMAIN',
-    storageBucket: 'REPLACE_WITH_STORAGE_BUCKET',
-    measurementId: 'REPLACE_WITH_MEASUREMENT_ID',
+  static const FirebaseOptions web =  FirebaseOptions(
+    apiKey: "AIzaSyDVnOZ6BE0oh_L6TnjbB5tvoQu2HqVNn9w",
+    authDomain: "parking-4d91a.firebaseapp.com",
+    databaseURL: "https://parking-4d91a-default-rtdb.firebaseio.com",
+    projectId: "parking-4d91a",
+    storageBucket: "parking-4d91a.appspot.com",
+    messagingSenderId: "321053041363",
+    appId: "1:321053041363:web:011300e9b65e1f70802a26",
+    measurementId: "G-13PPVDSXG9"
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -44,21 +45,21 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_IOS_API_KEY',
-    appId: 'REPLACE_WITH_IOS_APP_ID',
-    messagingSenderId: 'REPLACE_WITH_SENDER_ID',
-    projectId: 'REPLACE_WITH_PROJECT_ID',
-    iosBundleId: 'REPLACE_WITH_IOS_BUNDLE_ID',
-    storageBucket: 'REPLACE_WITH_STORAGE_BUCKET',
+    apiKey: 'AIzaSyCNAvTpA-3VdzxdcfV-VBU80HJCU15unfk',
+    appId: '1:321053041363:ios:462eff233e51679a802a26',
+    messagingSenderId: '321053041363',
+    projectId: 'parking-4d91a',
+    iosBundleId: 'com.pix.fix',
+    storageBucket: 'parking-4d91a.appspot.com',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_MACOS_API_KEY',
-    appId: 'REPLACE_WITH_MACOS_APP_ID',
-    messagingSenderId: 'REPLACE_WITH_SENDER_ID',
-    projectId: 'REPLACE_WITH_PROJECT_ID',
-    iosBundleId: 'com.example.template_2025',
-    storageBucket: 'REPLACE_WITH_STORAGE_BUCKET',
+    apiKey: 'AIzaSyCNAvTpA-3VdzxdcfV-VBU80HJCU15unfk',
+    appId: '1:321053041363:ios:462eff233e51679a802a26',
+    messagingSenderId: '321053041363',
+    projectId: 'parking-4d91a',
+    iosBundleId: 'com.pix.fix',
+    storageBucket: 'parking-4d91a.appspot.com',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
@@ -74,4 +75,4 @@ class DefaultFirebaseOptions {
     messagingSenderId: 'REPLACE_WITH_SENDER_ID',
     projectId: 'REPLACE_WITH_PROJECT_ID',
   );
-} 
+}

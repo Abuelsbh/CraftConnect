@@ -1,0 +1,115 @@
+{
+  "crafts": {
+    "carpenter": {
+      "value": "carpenter",
+      "translations": {
+        "ar": "عطل نجارة",
+        "en": "Carpentry Problem"
+      },
+      "order": 1,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    "electrical": {
+      "value": "electrical",
+      "translations": {
+        "ar": "عطل كهربائي",
+        "en": "Electrical Problem"
+      },
+      "order": 2,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    "plumbing": {
+      "value": "plumbing",
+      "translations": {
+        "ar": "عطل سباكة",
+        "en": "Plumbing Problem"
+      },
+      "order": 3,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    "painter": {
+      "value": "painter",
+      "translations": {
+        "ar": "عطل دهان",
+        "en": "Painting Problem"
+      },
+      "order": 4,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    "mechanic": {
+      "value": "mechanic",
+      "translations": {
+        "ar": "عطل ميكانيكي",
+        "en": "Mechanical Problem"
+      },
+      "order": 5,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    "hvac": {
+      "value": "hvac",
+      "translations": {
+        "ar": "عطل تكييف",
+        "en": "HVAC Problem"
+      },
+      "order": 6,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    "satellite": {
+      "value": "satellite",
+      "translations": {
+        "ar": "عطل ستالايت",
+        "en": "Satellite Problem"
+      },
+      "order": 7,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    "internet": {
+      "value": "internet",
+      "translations": {
+        "ar": "عطل إنترنت",
+        "en": "Internet Problem"
+      },
+      "order": 8,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    "tiler": {
+      "value": "tiler",
+      "translations": {
+        "ar": "عطل بلاط",
+        "en": "Tiling Problem"
+      },
+      "order": 9,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    "locksmith": {
+      "value": "locksmith",
+      "translations": {
+        "ar": "عطل أقفال",
+        "en": "Locksmith Problem"
+      },
+      "order": 10,
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  }
+}
+

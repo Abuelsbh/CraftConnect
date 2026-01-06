@@ -1,7 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../Models/artisan_model.dart';
 import '../services/artisan_service.dart';
+
+enum SortType {
+  none,
+  rating,
+  distance,
+}
 
 class ArtisanProvider extends ChangeNotifier {
   final ArtisanService _artisanService = ArtisanService();
@@ -12,6 +19,9 @@ class ArtisanProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   String _selectedCraftType = 'all';
+  String _searchQuery = '';
+  SortType _sortType = SortType.none;
+  Position? _userPosition;
 
   // Getters
   List<ArtisanModel> get artisans => _artisans;
@@ -20,6 +30,8 @@ class ArtisanProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get selectedCraftType => _selectedCraftType;
+  String get searchQuery => _searchQuery;
+  SortType get sortType => _sortType;
 
   // تسجيل حرفي جديد
   Future<bool> registerArtisan({
@@ -31,6 +43,8 @@ class ArtisanProvider extends ChangeNotifier {
     required String description,
     String? profileImagePath,
     List<String>? galleryImagePaths,
+    double? latitude,
+    double? longitude,
   }) async {
     try {
       _setLoading(true);
@@ -62,6 +76,8 @@ class ArtisanProvider extends ChangeNotifier {
         description: description,
         profileImagePath: profileImagePath,
         galleryImagePaths: galleryImagePaths,
+        latitude: latitude,
+        longitude: longitude,
       );
 
       if (artisan != null) {
@@ -212,6 +228,29 @@ class ArtisanProvider extends ChangeNotifier {
     }
   }
 
+  // تعيين موقع المستخدم للترتيب حسب المسافة
+  void setUserPosition(Position? position) {
+    _userPosition = position;
+    _filterArtisans();
+    notifyListeners();
+  }
+
+  // تعيين استعلام البحث
+  void setSearchQuery(String query) {
+    print('setSearchQuery called with: $query');
+    _searchQuery = query.trim();
+    _filterArtisans();
+    notifyListeners();
+  }
+
+  // تعيين نوع الترتيب
+  void setSortType(SortType sortType) {
+    print('setSortType called with: $sortType');
+    _sortType = sortType;
+    _filterArtisans();
+    notifyListeners();
+  }
+
   // اختيار نوع الحرفة للتصفية
   void selectCraftType(String craftType) {
     _selectedCraftType = craftType;
@@ -219,16 +258,50 @@ class ArtisanProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // تصفية الحرفيين حسب النوع المحدد
+  // حساب المسافة بين المستخدم والحرفي
+  double? _calculateDistance(ArtisanModel artisan) {
+    if (_userPosition == null) return null;
+    
+    return Geolocator.distanceBetween(
+      _userPosition!.latitude,
+      _userPosition!.longitude,
+      artisan.latitude,
+      artisan.longitude,
+    ) / 1000; // تحويل من متر إلى كيلومتر
+  }
+
+  // تصفية وترتيب الحرفيين
   void _filterArtisans() {
-    if (_selectedCraftType == 'all') {
-      _filteredArtisans = List.from(_artisans);
-    } else {
-      _filteredArtisans = _artisans
-          .where((artisan) => artisan.craftType == _selectedCraftType)
-          .toList();
+    List<ArtisanModel> filtered = List.from(_artisans);
+
+    // التصفية حسب نوع الحرفة
+    if (_selectedCraftType == 'available') {
+      filtered = filtered.where((artisan) => artisan.isAvailable).toList();
+    } else if (_selectedCraftType == 'high_rating') {
+      filtered = filtered.where((artisan) => artisan.rating >= 4.0).toList();
+    } else if (_selectedCraftType == 'experienced') {
+      filtered = filtered.where((artisan) => artisan.yearsOfExperience >= 5).toList();
     }
-    notifyListeners();
+
+    // البحث بالاسم
+    if (_searchQuery.isNotEmpty) {
+      filtered = filtered.where((artisan) {
+        return artisan.name.toLowerCase().contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+
+    // الترتيب
+    if (_sortType == SortType.rating) {
+      filtered.sort((a, b) => b.rating.compareTo(a.rating));
+    } else if (_sortType == SortType.distance && _userPosition != null) {
+      filtered.sort((a, b) {
+        final distanceA = _calculateDistance(a) ?? double.infinity;
+        final distanceB = _calculateDistance(b) ?? double.infinity;
+        return distanceA.compareTo(distanceB);
+      });
+    }
+
+    _filteredArtisans = filtered;
   }
 
   // تعيين الحرفي الحالي
@@ -261,6 +334,9 @@ class ArtisanProvider extends ChangeNotifier {
     _filteredArtisans.clear();
     _currentArtisan = null;
     _selectedCraftType = 'all';
+    _searchQuery = '';
+    _sortType = SortType.none;
+    _userPosition = null;
     _errorMessage = null;
     notifyListeners();
   }
@@ -301,6 +377,35 @@ class ArtisanProvider extends ChangeNotifier {
       _setError('فشل في جلب بيانات الحرفي: $e');
       _setLoading(false);
       return null;
+    }
+  }
+
+  // تحديث حالة التوفر للحرفي
+  Future<bool> updateAvailability(String artisanId, bool isAvailable) async {
+    try {
+      _setLoading(true);
+      _clearError();
+
+      await _artisanService.updateAvailability(artisanId, isAvailable);
+
+      // تحديث القائمة المحلية
+      final index = _artisans.indexWhere((a) => a.id == artisanId);
+      if (index != -1) {
+        _artisans[index] = _artisans[index].copyWith(isAvailable: isAvailable);
+      }
+
+      // تحديث الحرفي الحالي إذا كان هو نفسه
+      if (_currentArtisan?.id == artisanId) {
+        _currentArtisan = _currentArtisan!.copyWith(isAvailable: isAvailable);
+      }
+
+      _filterArtisans();
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _setError('فشل في تحديث حالة التوفر: $e');
+      _setLoading(false);
+      return false;
     }
   }
 } 

@@ -33,6 +33,50 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   double _rating = 5.0;
   List<String> _reviewImages = [];
   bool _isLoading = false;
+  bool _isLoadingReview = false;
+  ReviewModel? _existingReview;
+  bool _isEditMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingReview();
+  }
+
+  Future<void> _loadExistingReview() async {
+    setState(() {
+      _isLoadingReview = true;
+    });
+
+    try {
+      final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+      
+      if (authProvider.isLoggedIn && authProvider.currentUser != null) {
+        final reviewService = ReviewService();
+        final review = await reviewService.getUserReview(
+          authProvider.currentUser!.id,
+          widget.artisanId,
+        );
+
+        if (review != null) {
+          setState(() {
+            _existingReview = review;
+            _isEditMode = true;
+            _rating = review.rating;
+            _commentController.text = review.comment;
+            _reviewImages = List<String>.from(review.images);
+          });
+        }
+      }
+    } catch (e) {
+      // في حالة الخطأ، نستمر كأنه تقييم جديد
+      print('خطأ في تحميل التقييم الحالي: $e');
+    } finally {
+      setState(() {
+        _isLoadingReview = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -98,40 +142,43 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
     try {
       final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
       
-      if (!authProvider.isLoggedIn) {
+      if (!authProvider.isLoggedIn || authProvider.currentUser == null) {
         _showErrorSnackBar('يجب تسجيل الدخول لإضافة تقييم');
+        setState(() {
+          _isLoading = false;
+        });
         return;
       }
 
-      // إنشاء معرف فريد للتقييم
-      final reviewId = DateTime.now().millisecondsSinceEpoch.toString();
+      final user = authProvider.currentUser!;
+      final now = DateTime.now();
 
       // إنشاء نموذج التقييم
       final review = ReviewModel(
-        id: reviewId,
+        id: '${user.id}_${widget.artisanId}', // ID ثابت بناءً على userId + artisanId
         artisanId: widget.artisanId,
-        userId: authProvider.currentUser!.id,
-        userName: authProvider.currentUser!.name,
-        userProfileImage: authProvider.currentUser!.profileImageUrl,
+        userId: user.id,
+        userName: user.name,
+        userProfileImage: user.profileImageUrl,
         rating: _rating,
         comment: _commentController.text.trim(),
         images: _reviewImages,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: _existingReview?.createdAt ?? now, // الحفاظ على تاريخ الإنشاء الأصلي
+        updatedAt: now,
       );
 
-      // حفظ التقييم في Firebase
+      // حفظ أو تحديث التقييم في Firebase
       final reviewService = ReviewService();
-      await reviewService.addReview(review);
+      await reviewService.addOrUpdateReview(review);
 
-      _showSuccessSnackBar('تم إضافة التقييم بنجاح!');
+      _showSuccessSnackBar(_isEditMode ? 'تم تحديث التقييم بنجاح!' : 'تم إضافة التقييم بنجاح!');
       
       // العودة للصفحة السابقة
       if (mounted) {
         context.pop();
       }
     } catch (e) {
-      _showErrorSnackBar('فشل في إضافة التقييم: $e');
+      _showErrorSnackBar('فشل في حفظ التقييم: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -145,7 +192,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(
-          'إضافة تقييم',
+          _isEditMode ? 'تعديل التقييم' : 'إضافة تقييم',
           style: TextStyle(
             fontSize: 18.sp,
             fontWeight: FontWeight.w600,
@@ -156,26 +203,63 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
       ),
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: EdgeInsets.all(AppConstants.padding),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildArtisanInfo(),
-                  SizedBox(height: 24.h),
-                  _buildRatingSection(),
-                  SizedBox(height: 24.h),
-                  _buildCommentSection(),
-                  SizedBox(height: 24.h),
-                  _buildImagesSection(),
-                  SizedBox(height: 32.h),
-                  _buildSubmitButton(),
-                ],
+          if (_isLoadingReview)
+            Center(
+              child: CircularProgressIndicator(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            )
+          else
+            SingleChildScrollView(
+              padding: EdgeInsets.all(AppConstants.padding),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildArtisanInfo(),
+                    if (_isEditMode) ...[
+                      SizedBox(height: 16.h),
+                      Container(
+                        padding: EdgeInsets.all(12.w),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8.r),
+                          border: Border.all(
+                            color: Colors.blue.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.blue,
+                              size: 20.w,
+                            ),
+                            SizedBox(width: 8.w),
+                            Expanded(
+                              child: Text(
+                                'لديك تقييم سابق. يمكنك تعديله الآن.',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  color: Colors.blue[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: 24.h),
+                    _buildRatingSection(),
+                    SizedBox(height: 24.h),
+                    _buildCommentSection(),
+                    SizedBox(height: 32.h),
+                    _buildSubmitButton(),
+                  ],
+                ),
               ),
             ),
-          ),
           if (_isLoading)
             Container(
               color: Colors.black.withValues(alpha: 0.5),
@@ -337,12 +421,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
           prefixIcon: Icon(Icons.rate_review_rounded),
           maxLine: 4,
           validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'يرجى كتابة تعليق';
-            }
-            if (value.trim().length < 10) {
-              return 'يجب أن يكون التعليق 10 أحرف على الأقل';
-            }
+            // لا يوجد حد أدنى للتعليق - التعليق اختياري
             return null;
           },
         ),
@@ -350,135 +429,13 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
     );
   }
 
-  Widget _buildImagesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              'صور (اختياري)',
-              style: TextStyle(
-                fontSize: 16.sp,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '${_reviewImages.length}/5',
-              style: TextStyle(
-                fontSize: 12.sp,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 12.h),
-        if (_reviewImages.isEmpty)
-          GestureDetector(
-            onTap: () => _showImagePickerDialog(),
-            child: Container(
-              height: 120.h,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
-                borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                  style: BorderStyle.solid,
-                ),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.add_photo_alternate_rounded,
-                    size: 32.w,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    'إضافة صور',
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 8.w,
-              mainAxisSpacing: 8.h,
-            ),
-            itemCount: _reviewImages.length + (_reviewImages.length < 5 ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index == _reviewImages.length) {
-                return GestureDetector(
-                  onTap: () => _showImagePickerDialog(),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant,
-                      borderRadius: BorderRadius.circular(8.r),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.add_rounded,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                );
-              }
-              return Stack(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8.r),
-                      image: DecorationImage(
-                        image: FileImage(File(_reviewImages[index])),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: GestureDetector(
-                      onTap: () => _removeImage(index),
-                      child: Container(
-                        padding: EdgeInsets.all(4.w),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 12.w,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-      ],
-    );
-  }
 
   Widget _buildSubmitButton() {
     return CustomButtonWidget(
-      title: _isLoading ? 'جاري الإضافة...' : 'إضافة التقييم',
+      height: 48.h,
+      title: _isLoading 
+          ? (_isEditMode ? 'جاري التحديث...' : 'جاري الإضافة...')
+          : (_isEditMode ? 'تحديث التقييم' : 'إضافة التقييم'),
       onTap: _isLoading ? () {} : _submitReview,
       backGroundColor: _isLoading ? Colors.grey : Theme.of(context).colorScheme.primary,
     );
@@ -494,7 +451,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
           children: [
             ListTile(
               leading: Icon(Icons.camera_alt_rounded),
-              title: Text('التقاط صورة'),
+              title: Text(AppLocalizations.of(context)?.translate('take_photo_title') ?? 'التقاط صورة'),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.camera);
@@ -502,7 +459,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
             ),
             ListTile(
               leading: Icon(Icons.photo_library_rounded),
-              title: Text('اختيار من المعرض'),
+              title: Text(AppLocalizations.of(context)?.translate('select_from_gallery_title') ?? 'اختيار من المعرض'),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.gallery);

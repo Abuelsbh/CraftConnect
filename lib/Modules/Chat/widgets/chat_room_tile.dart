@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import '../../../Models/chat_model.dart';
 import '../../../Models/user_model.dart';
+import '../../../Models/artisan_model.dart';
 import '../../../Utilities/app_constants.dart';
+import '../../../services/chat_service.dart';
 
 class ChatRoomTile extends StatelessWidget {
   final ChatRoom room;
@@ -21,9 +24,11 @@ class ChatRoomTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Card(
       margin: EdgeInsets.only(bottom: 8.h),
       elevation: 1,
+      color: isDarkMode ? Colors.grey[800] : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppConstants.borderRadius),
       ),
@@ -68,23 +73,64 @@ class ChatRoomTile extends StatelessWidget {
           name = snapshot.data!.name;
         }
 
-        return CircleAvatar(
-          radius: 24.r,
-          backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-          backgroundImage: imageUrl != null && imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
-          child: imageUrl == null || imageUrl.isEmpty
-              ? Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                )
-              : null,
-        );
+        ImageProvider? imageProvider = _getImageProvider(imageUrl);
+
+        if (imageProvider != null) {
+          return CircleAvatar(
+            radius: 24.r,
+            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+            backgroundImage: imageProvider,
+            onBackgroundImageError: (exception, stackTrace) {
+              // Handle image loading errors silently
+              // The fallback child will be shown
+            },
+            child: null,
+          );
+        } else {
+          return CircleAvatar(
+            radius: 24.r,
+            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: TextStyle(
+                fontSize: 16.sp,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          );
+        }
       },
     );
+  }
+
+  ImageProvider? _getImageProvider(String? imageData) {
+    if (imageData == null || imageData.isEmpty) {
+      return null;
+    }
+
+    // Check if it's a URL
+    if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
+      return NetworkImage(imageData);
+    }
+
+    // Try to decode as base64
+    try {
+      final imageBytes = base64Decode(imageData);
+      if (imageBytes.isNotEmpty) {
+        return MemoryImage(imageBytes);
+      }
+    } catch (e) {
+      // If decoding fails, it might be an invalid base64 string
+      // Try as URL anyway
+      try {
+        return NetworkImage(imageData);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    return null;
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -194,9 +240,174 @@ class ChatRoomTile extends StatelessWidget {
   }
 
   Future<UserModel?> _getOtherParticipantInfo() async {
-    // This would typically come from a service
-    // For now, we'll return null and handle it in the UI
-    return null;
+    try {
+      // Normalize IDs (trim whitespace and convert to lowercase for comparison)
+      final normalizedCurrentUserId = currentUserId.trim().toLowerCase();
+      final normalizedParticipant1Id = room.participant1Id.trim().toLowerCase();
+      final normalizedParticipant2Id = room.participant2Id.trim().toLowerCase();
+      
+      // Keep original IDs for fetching (case-sensitive)
+      final originalParticipant1Id = room.participant1Id.trim();
+      final originalParticipant2Id = room.participant2Id.trim();
+      final originalCurrentUserId = currentUserId.trim();
+      
+      // Validate currentUserId
+      if (normalizedCurrentUserId.isEmpty) {
+        print('❌ [ChatRoomTile] Warning: currentUserId is empty');
+        return null;
+      }
+      
+      // Validate room participants
+      if (normalizedParticipant1Id.isEmpty && normalizedParticipant2Id.isEmpty) {
+        print('❌ [ChatRoomTile] Warning: Room has no participants');
+        return null;
+      }
+      
+      print('═══════════════════════════════════════════════════════');
+      print('🔍 [ChatRoomTile] DETERMINING OTHER PARTICIPANT');
+      print('🔍 [ChatRoomTile] Room ID: ${room.id}');
+      print('🔍 [ChatRoomTile] Participant1 ID (original): "$originalParticipant1Id"');
+      print('🔍 [ChatRoomTile] Participant2 ID (original): "$originalParticipant2Id"');
+      print('🔍 [ChatRoomTile] Current User ID (original): "$originalCurrentUserId"');
+      print('🔍 [ChatRoomTile] Participant1 ID (normalized): "$normalizedParticipant1Id"');
+      print('🔍 [ChatRoomTile] Participant2 ID (normalized): "$normalizedParticipant2Id"');
+      print('🔍 [ChatRoomTile] Current User ID (normalized): "$normalizedCurrentUserId"');
+      
+      final chatService = ChatService();
+      
+      // Determine the other participant ID with strict comparison
+      String? otherParticipantId;
+      bool isCurrentUserParticipant1 = false;
+      bool isCurrentUserParticipant2 = false;
+      
+      // Check if current user is participant1 (case-insensitive comparison)
+      if (normalizedParticipant1Id == normalizedCurrentUserId) {
+        isCurrentUserParticipant1 = true;
+        otherParticipantId = originalParticipant2Id; // Use original ID for fetching
+        print('✅ [ChatRoomTile] ✓ Current user IS participant1');
+        print('✅ [ChatRoomTile] ✓ Other participant IS participant2: "$otherParticipantId"');
+      }
+      // Check if current user is participant2 (case-insensitive comparison)
+      else if (normalizedParticipant2Id == normalizedCurrentUserId) {
+        isCurrentUserParticipant2 = true;
+        otherParticipantId = originalParticipant1Id; // Use original ID for fetching
+        print('✅ [ChatRoomTile] ✓ Current user IS participant2');
+        print('✅ [ChatRoomTile] ✓ Other participant IS participant1: "$otherParticipantId"');
+      }
+      // Current user is not in this room - this should not happen
+      else {
+        print('⚠️ [ChatRoomTile] ⚠️ ERROR: Current user is NOT a participant in this room!');
+        print('⚠️ [ChatRoomTile] Comparison results:');
+        print('⚠️ [ChatRoomTile]   participant1 == currentUser: ${normalizedParticipant1Id == normalizedCurrentUserId}');
+        print('⚠️ [ChatRoomTile]   participant2 == currentUser: ${normalizedParticipant2Id == normalizedCurrentUserId}');
+        print('⚠️ [ChatRoomTile] This room should not be shown to this user!');
+        return null;
+      }
+      
+      if (otherParticipantId == null || otherParticipantId.isEmpty) {
+        print('❌ [ChatRoomTile] ❌ ERROR: Other participant ID is empty!');
+        return null;
+      }
+      
+      // CRITICAL CHECK: Ensure otherParticipantId is NOT the same as currentUserId
+      if (otherParticipantId.toLowerCase() == normalizedCurrentUserId) {
+        print('❌ [ChatRoomTile] ❌ CRITICAL ERROR: Other participant ID is the same as current user ID!');
+        print('❌ [ChatRoomTile] This would show the current user instead of the other participant');
+        print('❌ [ChatRoomTile] Current: "$originalCurrentUserId"');
+        print('❌ [ChatRoomTile] Other: "$otherParticipantId"');
+        return null;
+      }
+      
+      print('🔍 [ChatRoomTile] Fetching info for other participant: "$otherParticipantId"');
+      
+      // Try to get user info first
+      print('🔍 [ChatRoomTile] Attempting to get user info...');
+      final userInfo = await chatService.getUserInfo(otherParticipantId);
+      print('🔍 [ChatRoomTile] getUserInfo result: ${userInfo != null ? "Found user: ${userInfo.name} (ID: ${userInfo.id})" : "User not found"}');
+      
+      if (userInfo != null && userInfo.id.isNotEmpty && userInfo.name.isNotEmpty) {
+        // CRITICAL CHECK: Verify the fetched user ID matches the expected other participant ID
+        final fetchedUserIdNormalized = userInfo.id.trim().toLowerCase();
+        final expectedOtherIdNormalized = otherParticipantId.trim().toLowerCase();
+        
+        if (fetchedUserIdNormalized != expectedOtherIdNormalized) {
+          print('❌ [ChatRoomTile] ❌ CRITICAL ERROR: Fetched user ID does not match expected other participant ID!');
+          print('❌ [ChatRoomTile] Expected: "$otherParticipantId" (normalized: "$expectedOtherIdNormalized")');
+          print('❌ [ChatRoomTile] Got: "${userInfo.id}" (normalized: "$fetchedUserIdNormalized")');
+          print('❌ [ChatRoomTile] Name: "${userInfo.name}"');
+          return null;
+        }
+        
+        // Triple check: make sure we didn't get the current user's info by mistake
+        if (fetchedUserIdNormalized == normalizedCurrentUserId) {
+          print('❌ [ChatRoomTile] ❌ CRITICAL ERROR: Got current user info instead of other participant!');
+          print('❌ [ChatRoomTile] User ID: "${userInfo.id}", Name: "${userInfo.name}"');
+          print('❌ [ChatRoomTile] Current User ID: "$originalCurrentUserId"');
+          print('❌ [ChatRoomTile] Expected other participant ID: "$otherParticipantId"');
+          return null;
+        }
+        
+        print('✅ [ChatRoomTile] ✓✓✓ SUCCESS: Found other participant user!');
+        print('✅ [ChatRoomTile] Name: "${userInfo.name}"');
+        print('✅ [ChatRoomTile] ID: "${userInfo.id}"');
+        print('✅ [ChatRoomTile] Verified: ID matches expected other participant');
+        print('═══════════════════════════════════════════════════════');
+        return userInfo;
+      }
+      
+      // If user not found, try to get artisan info
+      print('🔍 [ChatRoomTile] User not found, attempting to get artisan info...');
+      final artisanInfo = await chatService.getArtisanInfo(otherParticipantId);
+      print('🔍 [ChatRoomTile] getArtisanInfo result: ${artisanInfo != null ? "Found artisan: ${artisanInfo.name} (ID: ${artisanInfo.id})" : "Artisan not found"}');
+      
+      if (artisanInfo != null && artisanInfo.id.isNotEmpty && artisanInfo.name.isNotEmpty) {
+        // CRITICAL CHECK: Verify the fetched artisan ID matches the expected other participant ID
+        final fetchedArtisanIdNormalized = artisanInfo.id.trim().toLowerCase();
+        final expectedOtherIdNormalized = otherParticipantId.trim().toLowerCase();
+        
+        if (fetchedArtisanIdNormalized != expectedOtherIdNormalized) {
+          print('❌ [ChatRoomTile] ❌ CRITICAL ERROR: Fetched artisan ID does not match expected other participant ID!');
+          print('❌ [ChatRoomTile] Expected: "$otherParticipantId" (normalized: "$expectedOtherIdNormalized")');
+          print('❌ [ChatRoomTile] Got: "${artisanInfo.id}" (normalized: "$fetchedArtisanIdNormalized")');
+          print('❌ [ChatRoomTile] Name: "${artisanInfo.name}"');
+          return null;
+        }
+        
+        // Triple check: make sure we didn't get the current user's info by mistake
+        if (fetchedArtisanIdNormalized == normalizedCurrentUserId) {
+          print('❌ [ChatRoomTile] ❌ CRITICAL ERROR: Got current user artisan info instead of other participant!');
+          print('❌ [ChatRoomTile] Artisan ID: "${artisanInfo.id}", Name: "${artisanInfo.name}"');
+          print('❌ [ChatRoomTile] Current User ID: "$originalCurrentUserId"');
+          print('❌ [ChatRoomTile] Expected other participant ID: "$otherParticipantId"');
+          return null;
+        }
+        
+        print('✅ [ChatRoomTile] ✓✓✓ SUCCESS: Found other participant artisan!');
+        print('✅ [ChatRoomTile] Name: "${artisanInfo.name}"');
+        print('✅ [ChatRoomTile] ID: "${artisanInfo.id}"');
+        print('✅ [ChatRoomTile] Verified: ID matches expected other participant');
+        print('═══════════════════════════════════════════════════════');
+        // Convert ArtisanModel to UserModel for display
+        return UserModel(
+          id: artisanInfo.id,
+          name: artisanInfo.name,
+          email: artisanInfo.email,
+          phone: artisanInfo.phone,
+          profileImageUrl: artisanInfo.profileImageUrl,
+          createdAt: artisanInfo.createdAt,
+          updatedAt: artisanInfo.updatedAt,
+        );
+      }
+      
+      print('❌ [ChatRoomTile] ❌ ERROR: Could not find user or artisan with ID: "$otherParticipantId"');
+      print('═══════════════════════════════════════════════════════');
+      return null;
+    } catch (e, stackTrace) {
+      print('❌ [ChatRoomTile] ❌ EXCEPTION: Error getting other participant info: $e');
+      print('❌ [ChatRoomTile] Stack trace: $stackTrace');
+      print('═══════════════════════════════════════════════════════');
+      return null;
+    }
   }
 
   String _formatTime(DateTime time) {

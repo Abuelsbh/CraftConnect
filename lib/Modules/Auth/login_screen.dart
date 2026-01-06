@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
@@ -292,12 +293,6 @@ class _LoginScreenState extends State<LoginScreen>
           text: AppLocalizations.of(context)?.translate('continue_with_google') ?? 'المتابعة مع Google',
           onPressed: () => _handleGoogleLogin(),
         ),
-        SizedBox(height: AppConstants.smallPadding),
-        _buildSocialButton(
-          icon: Icons.phone_android_rounded,
-          text: AppLocalizations.of(context)?.translate('continue_with_phone') ?? 'المتابعة برقم الهاتف',
-          onPressed: () => _handlePhoneLogin(),
-        ),
       ],
     );
   }
@@ -370,41 +365,63 @@ class _LoginScreenState extends State<LoginScreen>
       rememberMe: _rememberMe,
     );
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
       context.go('/home');
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            authProvider.errorMessage ?? 
-            (AppLocalizations.of(context)?.translate('login_failed') ?? 'فشل في تسجيل الدخول'),
+    } else {
+      // Get fresh references after mounted check and wrap in try-catch for safety
+      try {
+        if (!mounted) return;
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              authProvider.errorMessage ?? 
+              (AppLocalizations.of(context)?.translate('login_failed') ?? 'فشل في تسجيل الدخول'),
+            ),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      } catch (e) {
+        // Widget was deactivated, ignore the error
+        if (kDebugMode) {
+          print('Could not show snackbar: $e');
+        }
+      }
     }
   }
 
   Future<void> _handleGoogleLogin() async {
     final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+
     final success = await authProvider.loginWithGoogle();
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
       context.go('/home');
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            authProvider.errorMessage ?? 
-            (AppLocalizations.of(context)?.translate('google_login_failed') ?? 'فشل في تسجيل الدخول مع Google'),
+    } else {
+      // Get fresh references after mounted check and wrap in try-catch for safety
+      try {
+        if (!mounted) return;
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              authProvider.errorMessage ?? 
+              (AppLocalizations.of(context)?.translate('google_login_failed') ?? 'فشل في تسجيل الدخول مع Google'),
+            ),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      } catch (e) {
+        // Widget was deactivated, ignore the error
+        if (kDebugMode) {
+          print('Could not show snackbar: $e');
+        }
+      }
     }
   }
 
-  Future<void> _handlePhoneLogin() async {
-    context.push('/phone-login');
-  }
 } 

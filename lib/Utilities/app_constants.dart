@@ -1,6 +1,8 @@
+import 'dart:ui';
+
 class AppConstants {
   // App Info
-  static const String appName = 'CraftConnect';
+  static const String appName = 'PIX & FIX';
   static const String appVersion = '1.0.0';
 
   // Craft Types - يمكن تحميلها من Firebase
@@ -10,6 +12,11 @@ class AppConstants {
     'plumber',
     'painter',
     'mechanic',
+    'hvac',
+    'satellite',
+    'internet',
+    'tiler',
+    'locksmith',
   ];
 
   // Animation Durations
@@ -23,6 +30,13 @@ class AppConstants {
   static const double largePadding = 24.0;
   static const double borderRadius = 12.0;
   static const double cardElevation = 4.0;
+
+  // Colors
+  static const Color primaryColor = Color(0xFF2196F3);
+  static const Color secondaryColor = Color(0xFF03DAC6);
+  static const Color errorColor = Color(0xFFB00020);
+  static const Color successColor = Color(0xFF4CAF50);
+  static const Color warningColor = Color(0xFFFF9800);
 
   // Firebase Collections
   static const String usersCollection = 'users';

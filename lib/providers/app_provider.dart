@@ -3,8 +3,10 @@ import 'package:geolocator/geolocator.dart';
 import '../Models/artisan_model.dart';
 import '../Models/craft_model.dart';
 import '../Models/user_model.dart';
+import '../services/artisan_service.dart';
 
 class AppProvider with ChangeNotifier {
+  final ArtisanService _artisanService = ArtisanService();
   // حالة التطبيق العامة
   bool _isLoading = false;
   String? _errorMessage;
@@ -39,7 +41,8 @@ class AppProvider with ChangeNotifier {
 
   // الحرفيين المفلترين
   List<ArtisanModel> get filteredArtisans {
-    List<ArtisanModel> filtered = _artisans;
+    // فلترة الحرفيين المتاحين فقط
+    List<ArtisanModel> filtered = _artisans.where((artisan) => artisan.isAvailable).toList();
 
     // فلترة حسب نوع الحرفة
     if (_selectedCraftType != 'all') {
@@ -146,9 +149,12 @@ class AppProvider with ChangeNotifier {
 
   // الحصول على الحرفيين القريبين
   List<ArtisanModel> getNearbyArtisans(double maxDistance) {
-    if (_currentPosition == null) return _artisans;
+    // فلترة الحرفيين المتاحين فقط
+    List<ArtisanModel> availableArtisans = _artisans.where((artisan) => artisan.isAvailable).toList();
+    
+    if (_currentPosition == null) return availableArtisans;
 
-    return _artisans.where((artisan) {
+    return availableArtisans.where((artisan) {
       double distance = Geolocator.distanceBetween(
         _currentPosition!.latitude,
         _currentPosition!.longitude,
@@ -211,14 +217,16 @@ class AppProvider with ChangeNotifier {
   Future<void> _loadArtisans() async {
     // تحميل الحرفيين من Firebase
     try {
-      // يمكن إضافة خدمة للحرفيين هنا
-      // final artisanService = ArtisanService();
-      // _artisans = await artisanService.getAllArtisans();
-      
-      // في الوقت الحالي، سنترك القائمة فارغة
-      _artisans = [];
+      _artisans = await _artisanService.getAllArtisans();
+      if (kDebugMode) {
+        print('✅ تم تحميل ${_artisans.length} حرفي في AppProvider');
+      }
     } catch (e) {
       _errorMessage = 'فشل في تحميل الحرفيين: $e';
+      if (kDebugMode) {
+        print('❌ خطأ في تحميل الحرفيين: $e');
+      }
+      _artisans = [];
     }
   }
 
@@ -290,7 +298,8 @@ class AppProvider with ChangeNotifier {
     double? minRating,
     int? maxDistance,
   }) {
-    List<ArtisanModel> results = _artisans;
+    // فلترة الحرفيين المتاحين فقط
+    List<ArtisanModel> results = _artisans.where((artisan) => artisan.isAvailable).toList();
 
     if (query != null && query.isNotEmpty) {
       results = results.where((artisan) =>

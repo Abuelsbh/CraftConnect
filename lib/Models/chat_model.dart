@@ -4,6 +4,7 @@ class ChatMessage extends Equatable {
   final String id;
   final String senderId;
   final String receiverId;
+  final String roomId; // Added for efficient filtering (will be calculated if not provided)
   final String content;
   final String? imageUrl;
   final String? fileUrl;
@@ -20,6 +21,7 @@ class ChatMessage extends Equatable {
     required this.id,
     required this.senderId,
     required this.receiverId,
+    this.roomId = '', // Will be calculated if not provided
     required this.content,
     this.imageUrl,
     this.fileUrl,
@@ -34,10 +36,22 @@ class ChatMessage extends Equatable {
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    // Calculate roomId if not present (for backward compatibility)
+    String roomId = json['roomId'] ?? '';
+    if (roomId.isEmpty) {
+      final senderId = (json['senderId'] ?? '').toString().trim();
+      final receiverId = (json['receiverId'] ?? '').toString().trim();
+      if (senderId.isNotEmpty && receiverId.isNotEmpty) {
+        final sortedIds = [senderId, receiverId]..sort();
+        roomId = '${sortedIds[0]}_${sortedIds[1]}';
+      }
+    }
+    
     return ChatMessage(
       id: json['id'] ?? '',
       senderId: json['senderId'] ?? '',
       receiverId: json['receiverId'] ?? '',
+      roomId: roomId,
       content: json['content'] ?? '',
       imageUrl: json['imageUrl'],
       fileUrl: json['fileUrl'],
@@ -62,6 +76,7 @@ class ChatMessage extends Equatable {
       'id': id,
       'senderId': senderId,
       'receiverId': receiverId,
+      'roomId': roomId,
       'content': content,
       'imageUrl': imageUrl,
       'fileUrl': fileUrl,
@@ -80,6 +95,7 @@ class ChatMessage extends Equatable {
     String? id,
     String? senderId,
     String? receiverId,
+    String? roomId,
     String? content,
     String? imageUrl,
     String? fileUrl,
@@ -96,6 +112,7 @@ class ChatMessage extends Equatable {
       id: id ?? this.id,
       senderId: senderId ?? this.senderId,
       receiverId: receiverId ?? this.receiverId,
+      roomId: roomId ?? this.roomId,
       content: content ?? this.content,
       imageUrl: imageUrl ?? this.imageUrl,
       fileUrl: fileUrl ?? this.fileUrl,
@@ -115,6 +132,7 @@ class ChatMessage extends Equatable {
     id, 
     senderId, 
     receiverId, 
+    roomId,
     content, 
     imageUrl, 
     fileUrl, 

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
+import '../../generated/assets.dart';
 import 'splash_data_handler.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -157,20 +158,13 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.primary,
+      backgroundColor: Colors.white,
       body: AnimatedBuilder(
         animation: _backgroundController,
         builder: (context, child) {
           return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Theme.of(context).colorScheme.primary.withValues(alpha: _backgroundOpacity.value),
-                  Theme.of(context).colorScheme.primaryContainer.withValues(alpha: _backgroundOpacity.value),
-                ],
-              ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
             ),
             child: Center(
               child: Column(
@@ -198,10 +192,14 @@ class _SplashScreenState extends State<SplashScreen>
                                 ),
                               ],
                             ),
-                            child: Icon(
-                              Icons.handyman_rounded,
-                              size: 60.w,
-                              color: Theme.of(context).colorScheme.primary,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(30.r),
+                              child: Image.asset(
+                                Assets.iconsLogo,
+                                width: 120.w,
+                                height: 120.w,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                         ),
@@ -226,7 +224,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 style: TextStyle(
                                   fontSize: 32.sp,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: Colors.black,
                                   letterSpacing: 1.2,
                                 ),
                               ),
@@ -235,7 +233,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 AppLocalizations.of(context)?.translate('welcome')??'',
                                 style: TextStyle(
                                   fontSize: 16.sp,
-                                  color: Colors.white.withValues(alpha: 0.9),
+                                  color: Colors.black.withValues(alpha: 0.7),
                                   fontWeight: FontWeight.w300,
                                 ),
                               ),
@@ -257,7 +255,7 @@ class _SplashScreenState extends State<SplashScreen>
                       child: CircularProgressIndicator(
                         strokeWidth: 3,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.white.withValues(alpha: 0.8),
+                          Colors.black.withValues(alpha: 0.6),
                         ),
                       ),
                     ),

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../Models/user_model.dart';
 import '../Utilities/shared_preferences.dart';
 import '../providers/artisan_provider.dart';
@@ -21,6 +22,12 @@ class SimpleAuthProvider with ChangeNotifier {
 
   final fb.FirebaseAuth _auth = fb.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: [
+      'email',
+      'profile',
+    ],
+  );
 
   SimpleAuthProvider() {
     _initializeAuth();
@@ -149,6 +156,15 @@ class SimpleAuthProvider with ChangeNotifier {
     }
   }
 
+  // إعادة تحميل بيانات المستخدم من Firestore
+  Future<void> reloadUser() async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser != null) {
+      await _loadUserFromFirestore(firebaseUser.uid);
+      notifyListeners();
+    }
+  }
+
   // تسجيل الدخول بالبريد/كلمة المرور
   Future<bool> login({
     required String email,
@@ -216,6 +232,123 @@ class SimpleAuthProvider with ChangeNotifier {
     }
   }
 
+  // تسجيل حساب حرفي بالبيانات الأساسية فقط
+  Future<bool> registerArtisanBasic({
+    required String email,
+    required String password,
+    required String name,
+    required String phone,
+  }) async {
+    try {
+      _setLoading(true);
+      _setError(null);
+
+      // إنشاء حساب Firebase Auth
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = cred.user;
+      if (user == null) {
+        _setError('فشل إنشاء الحساب');
+        return false;
+      }
+
+      try {
+        // تحديث اسم العرض في Firebase Auth
+        await user.updateDisplayName(name);
+        await user.reload();
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في تحديث اسم العرض: $e');
+        }
+      }
+
+      // إنشاء معرف فريد للحرفي
+      final artisanId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      // إنشاء نموذج المستخدم
+      try {
+        _currentUser = UserModel(
+          id: user.uid,
+          name: name,
+          email: email,
+          phone: phone,
+          profileImageUrl: '',
+          token: '',
+          userType: 'artisan',
+          artisanId: artisanId,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('خطأ في إنشاء نموذج المستخدم: $e');
+        }
+        _setError('خطأ في إنشاء بيانات المستخدم');
+        return false;
+      }
+
+      try {
+        // حفظ بيانات المستخدم في Firestore
+        await _saveUserToFirestore(_currentUser!);
+        
+        // إنشاء سجل حرفي أساسي مع قيم افتراضية
+        final artisanData = {
+          'id': artisanId,
+          'name': name,
+          'email': email,
+          'phone': phone,
+          'profileImageUrl': '',
+          'craftType': 'carpenter', // قيمة افتراضية
+          'yearsOfExperience': 1, // قيمة افتراضية
+          'description': '', // سيتم ملؤه لاحقاً
+          'latitude': 0.0, // سيتم تحديثه لاحقاً
+          'longitude': 0.0, // سيتم تحديثه لاحقاً
+          'address': '', // سيتم ملؤه لاحقاً
+          'rating': 0.0,
+          'reviewCount': 0,
+          'galleryImages': <String>[],
+          'skills': <String>[],
+          'isAvailable': false, // غير متاح حتى يكمل البيانات
+          'createdAt': DateTime.now().toIso8601String(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
+
+        // حفظ بيانات الحرفي في Firestore
+        await _firestore.collection('artisans').doc(artisanId).set(artisanData);
+        
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في حفظ البيانات في Firestore: $e');
+        }
+        // لا نوقف العملية إذا فشل حفظ البيانات في Firestore
+      }
+      
+      _isLoggedIn = true;
+      try {
+        await _saveUserLocally();
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في حفظ البيانات محلياً: $e');
+        }
+      }
+      return true;
+    } on fb.FirebaseAuthException catch (e) {
+      _setError(_firebaseErrorToArabic(e));
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('خطأ غير متوقع في إنشاء الحساب: $e');
+      }
+      _setError('حدث خطأ في إنشاء الحساب: ${e.toString()}');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // تسجيل حساب جديد
   Future<bool> register({
     required String email,
@@ -226,6 +359,8 @@ class SimpleAuthProvider with ChangeNotifier {
     String? craftType,
     String? description,
     int? yearsOfExperience,
+    double? latitude,
+    double? longitude,
   }) async {
     try {
       _setLoading(true);
@@ -291,6 +426,8 @@ class SimpleAuthProvider with ChangeNotifier {
               craftType: craftType,
               yearsOfExperience: yearsOfExperience,
               description: description,
+              latitude: latitude,
+              longitude: longitude,
             );
             
             if (success && artisanProvider.currentArtisan != null) {
@@ -338,11 +475,133 @@ class SimpleAuthProvider with ChangeNotifier {
     }
   }
 
-  // تسجيل الدخول مع Google (placeholder حتى إضافة google_sign_in)
+  // تسجيل الدخول مع Google
   Future<bool> loginWithGoogle() async {
     try {
       _setLoading(true);
-      _setError('خدمة Google Sign In غير مفعلة بعد. سيتم إضافتها قريباً.');
+      _setError(null);
+
+      // محاولة تسجيل الخروج أولاً للتأكد من عدم وجود جلسة قديمة
+      try {
+        await _googleSignIn.signOut();
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في تسجيل الخروج من Google: $e');
+        }
+      }
+
+      // بدء عملية تسجيل الدخول مع Google
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        // المستخدم ألغى العملية
+        _setError('تم إلغاء عملية تسجيل الدخول');
+        return false;
+      }
+
+      // الحصول على بيانات المصادقة من Google
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // التحقق من وجود idToken
+      if (googleAuth.idToken == null) {
+        _setError('فشل في الحصول على بيانات المصادقة من Google. يرجى التأكد من إضافة SHA-1 في Firebase Console');
+        return false;
+      }
+
+      // إنشاء بيانات اعتماد Firebase من بيانات Google
+      final credential = fb.GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // تسجيل الدخول إلى Firebase باستخدام بيانات اعتماد Google
+      final userCredential = await _auth.signInWithCredential(credential);
+      final user = userCredential.user;
+
+      if (user == null) {
+        _setError('فشل في تسجيل الدخول مع Google');
+        return false;
+      }
+
+      // التحقق من وجود المستخدم في Firestore
+      final userExists = await userExistsInFirestore(user.uid);
+      
+      if (!userExists) {
+        // إنشاء حساب جديد للمستخدم
+        _currentUser = UserModel(
+          id: user.uid,
+          name: user.displayName ?? 'مستخدم',
+          email: user.email ?? '',
+          phone: user.phoneNumber ?? '',
+          profileImageUrl: user.photoURL ?? '',
+          token: '',
+          userType: 'user',
+          artisanId: null,
+          createdAt: user.metadata.creationTime ?? DateTime.now(),
+          updatedAt: user.metadata.lastSignInTime ?? DateTime.now(),
+        );
+        
+        // حفظ بيانات المستخدم في Firestore
+        try {
+          await _saveUserToFirestore(_currentUser!);
+        } catch (e) {
+          if (kDebugMode) {
+            print('تحذير: فشل في حفظ البيانات في Firestore: $e');
+          }
+          // لا نوقف العملية إذا فشل حفظ البيانات في Firestore
+        }
+      } else {
+        // تحميل بيانات المستخدم من Firestore
+        try {
+          await _loadUserFromFirestore(user.uid);
+        } catch (e) {
+          if (kDebugMode) {
+            print('تحذير: فشل في تحميل البيانات من Firestore: $e');
+          }
+          // في حالة الفشل، استخدم بيانات Firebase Auth الأساسية
+          try {
+            _currentUser = _mapFirebaseUserToUserModel(user);
+          } catch (mapError) {
+            if (kDebugMode) {
+              print('خطأ في تحويل بيانات المستخدم: $mapError');
+            }
+            _setError('خطأ في تحميل بيانات المستخدم');
+            return false;
+          }
+        }
+      }
+
+      _isLoggedIn = true;
+      
+      // حفظ البيانات محلياً
+      try {
+        await _saveUserLocally();
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في حفظ البيانات محلياً: $e');
+        }
+        // لا نوقف العملية إذا فشل حفظ البيانات محلياً
+      }
+
+      return true;
+    } on fb.FirebaseAuthException catch (e) {
+      if (kDebugMode) {
+        print('Firebase Auth Exception: ${e.code} - ${e.message}');
+      }
+      _setError(_firebaseErrorToArabic(e));
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('خطأ غير متوقع في تسجيل الدخول مع Google: $e');
+        print('نوع الخطأ: ${e.runtimeType}');
+      }
+      
+      // معالجة خاصة لخطأ ApiException: 10
+      if (e.toString().contains('ApiException: 10') || e.toString().contains('sign_in_failed')) {
+        _setError('خطأ في إعدادات Google Sign-In. يرجى التأكد من:\n1. إضافة SHA-1 fingerprint في Firebase Console\n2. تفعيل Google Sign-In في Firebase Authentication\n3. التأكد من تطابق package name');
+      } else {
+        _setError('حدث خطأ غير متوقع: ${e.toString()}');
+      }
       return false;
     } finally {
       _setLoading(false);
@@ -353,7 +612,17 @@ class SimpleAuthProvider with ChangeNotifier {
   Future<void> logout() async {
     try {
       _setLoading(true);
+      // تسجيل الخروج من Firebase
       await _auth.signOut();
+      // تسجيل الخروج من Google
+      try {
+        await _googleSignIn.signOut();
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في تسجيل الخروج من Google: $e');
+        }
+        // لا نوقف العملية إذا فشل تسجيل الخروج من Google
+      }
       await _clearUserData();
       _currentUser = null;
       _isLoggedIn = false;

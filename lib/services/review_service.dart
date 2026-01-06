@@ -17,15 +17,21 @@ class ReviewService {
   // الحصول على تقييمات حرفي معين
   Future<List<ReviewModel>> getReviewsByArtisanId(String artisanId) async {
     try {
+      // استخدام where فقط بدون orderBy لتجنب الحاجة لـ index
       final querySnapshot = await _firestore
           .collection(_collection)
           .where('artisanId', isEqualTo: artisanId)
-          .orderBy('createdAt', descending: true)
           .get();
 
-      return querySnapshot.docs
+      // تحويل البيانات وترتيبها محلياً
+      final reviews = querySnapshot.docs
           .map((doc) => ReviewModel.fromJson(doc.data()))
           .toList();
+      
+      // ترتيب حسب التاريخ (الأحدث أولاً)
+      reviews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      return reviews;
     } catch (e) {
       throw Exception('فشل في تحميل التقييمات: $e');
     }
@@ -115,6 +121,80 @@ class ReviewService {
       return querySnapshot.docs.isNotEmpty;
     } catch (e) {
       throw Exception('فشل في التحقق من التقييم: $e');
+    }
+  }
+
+  // الحصول على تقييم مستخدم معين لحرفي معين
+  Future<ReviewModel?> getUserReview(String userId, String artisanId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .where('artisanId', isEqualTo: artisanId)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return null;
+      }
+
+      return ReviewModel.fromJson(querySnapshot.docs.first.data());
+    } catch (e) {
+      throw Exception('فشل في تحميل التقييم: $e');
+    }
+  }
+
+  // إضافة أو تحديث تقييم (تقييم واحد فقط لكل مستخدم لكل حرفي)
+  Future<void> addOrUpdateReview(ReviewModel review) async {
+    try {
+      // استخدام ID ثابت بناءً على userId + artisanId
+      // هذا يضمن أن كل مستخدم له تقييم واحد فقط لكل حرفي
+      final reviewId = '${review.userId}_${review.artisanId}';
+      
+      final reviewToSave = review.copyWith(
+        id: reviewId,
+        updatedAt: DateTime.now(),
+      );
+
+      // استخدام set مع merge: true للتحديث إذا كان موجوداً أو الإضافة إذا لم يكن موجوداً
+      await _firestore
+          .collection(_collection)
+          .doc(reviewId)
+          .set(reviewToSave.toJson(), SetOptions(merge: true));
+
+      // تحديث rating و reviewCount في بيانات الحرفي
+      await _updateArtisanRating(review.artisanId);
+    } catch (e) {
+      throw Exception('فشل في حفظ التقييم: $e');
+    }
+  }
+
+  // تحديث rating و reviewCount في بيانات الحرفي
+  Future<void> _updateArtisanRating(String artisanId) async {
+    try {
+      // حساب متوسط التقييم وعدد التقييمات
+      final averageRating = await getAverageRating(artisanId);
+      final reviewCount = await getReviewCount(artisanId);
+
+      // تحديث بيانات الحرفي
+      await _firestore.collection('artisans').doc(artisanId).update({
+        'rating': averageRating,
+        'reviewCount': reviewCount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      // لا نرمي خطأ هنا حتى لا نفشل عملية حفظ التقييم
+      print('تحذير: فشل في تحديث rating الحرفي: $e');
+    }
+  }
+
+  // حذف تقييم وتحديث rating الحرفي
+  Future<void> deleteReviewAndUpdateArtisan(String reviewId, String artisanId) async {
+    try {
+      await deleteReview(reviewId);
+      await _updateArtisanRating(artisanId);
+    } catch (e) {
+      throw Exception('فشل في حذف التقييم: $e');
     }
   }
 } 

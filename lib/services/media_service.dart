@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
 import 'package:location/location.dart' as location_package;
 import 'package:geocoding/geocoding.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../Models/chat_model.dart';
 
 class MediaService {
@@ -76,31 +77,88 @@ class MediaService {
   Future<Map<String, String>?> uploadFile() async {
     try {
       print('📁 بدء اختيار ملف...');
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-        allowMultiple: false,
-      );
+      
+      // على Android 13+، file_picker يعمل بدون صلاحيات خاصة
+      // لكن نتحقق من الصلاحيات على الأجهزة القديمة
+      if (Platform.isAndroid) {
+        try {
+          // التحقق من صلاحيات التخزين (لأجهزة Android القديمة)
+          final storageStatus = await Permission.storage.status;
+          if (storageStatus.isDenied) {
+            print('⚠️ صلاحية التخزين غير ممنوحة، سيتم طلبها...');
+            final result = await Permission.storage.request();
+            if (result.isDenied) {
+              print('❌ تم رفض صلاحية التخزين');
+              // نستمر على أي حال لأن file_picker قد يعمل بدونها على Android 13+
+            }
+          }
+        } catch (e) {
+          print('⚠️ خطأ في التحقق من صلاحيات التخزين: $e');
+          // نستمر على أي حال
+        }
+      }
+      
+      FilePickerResult? result;
+      try {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.any,
+          allowMultiple: false,
+          withData: false, // لا نحتاج البيانات في الذاكرة
+          withReadStream: false,
+        );
+      } catch (e) {
+        print('❌ خطأ في فتح file picker: $e');
+        throw Exception('فشل في فتح محدد الملفات: $e');
+      }
 
-      if (result != null) {
-        final file = File(result.files.single.path!);
-        final fileName = result.files.single.name;
-        final fileSize = result.files.single.size.toString();
+      if (result != null && result.files.isNotEmpty) {
+        final pickedFile = result.files.single;
+        
+        // التحقق من وجود مسار الملف
+        if (pickedFile.path == null || pickedFile.path!.isEmpty) {
+          print('❌ مسار الملف فارغ');
+          throw Exception('لم يتم تحديد مسار الملف');
+        }
+        
+        final filePath = pickedFile.path!;
+        final file = File(filePath);
+        
+        // التحقق من وجود الملف
+        if (!await file.exists()) {
+          print('❌ الملف غير موجود: $filePath');
+          throw Exception('الملف المحدد غير موجود');
+        }
+        
+        // التحقق من حجم الملف
+        final fileSize = await file.length();
+        if (fileSize == 0) {
+          print('❌ الملف فارغ');
+          throw Exception('الملف المحدد فارغ');
+        }
+        
+        final fileName = pickedFile.name.isNotEmpty 
+            ? pickedFile.name 
+            : path.basename(filePath);
+        final fileSizeString = fileSize.toString();
 
-        print('📁 تم اختيار الملف: $fileName (${fileSize} bytes)');
-        final downloadUrl = await _uploadFileToStorage(file.path, fileName);
+        print('📁 تم اختيار الملف: $fileName (${fileSizeString} bytes)');
+        print('📁 مسار الملف: $filePath');
+        
+        final downloadUrl = await _uploadFileToStorage(filePath, fileName);
         print('✅ تم رفع الملف بنجاح: $downloadUrl');
         
         return {
           'url': downloadUrl,
           'name': fileName,
-          'size': fileSize,
+          'size': fileSizeString,
         };
       }
-      print('❌ لم يتم اختيار ملف');
+      print('ℹ️ المستخدم ألغى اختيار الملف');
       return null;
     } catch (e) {
       print('❌ خطأ في رفع الملف: $e');
-      throw Exception('فشل في رفع الملف: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
+      rethrow;
     }
   }
 

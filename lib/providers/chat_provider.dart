@@ -32,24 +32,87 @@ class ChatProvider with ChangeNotifier {
     _loadChatRooms();
   }
 
+  // Refresh chat rooms manually
+  void refreshChatRooms() {
+    if (_currentUser != null) {
+      _loadChatRooms();
+    }
+  }
+
+  // Get the effective user ID for chat (artisanId for artisans, userId for regular users)
+  String _getEffectiveUserId() {
+    if (_currentUser == null) {
+      print('❌ [ChatProvider] _getEffectiveUserId: _currentUser is null');
+      return '';
+    }
+    
+    print('═══════════════════════════════════════════════════════');
+    print('🔍 [ChatProvider] Determining effective user ID');
+    print('🔍 [ChatProvider] User ID: ${_currentUser!.id}');
+    print('🔍 [ChatProvider] User Type: ${_currentUser!.userType}');
+    print('🔍 [ChatProvider] Artisan ID: ${_currentUser!.artisanId ?? 'null'}');
+    print('🔍 [ChatProvider] User Name: ${_currentUser!.name}');
+    print('🔍 [ChatProvider] User Email: ${_currentUser!.email}');
+    
+    // If user is an artisan and has artisanId, use artisanId for chat
+    // This is because messages are sent to artisan.id, not user.id
+    if (_currentUser!.userType == 'artisan') {
+      if (_currentUser!.artisanId != null && _currentUser!.artisanId!.isNotEmpty) {
+        final artisanId = _currentUser!.artisanId!.trim();
+        print('✅ [ChatProvider] User is artisan, using artisanId: $artisanId (instead of userId: ${_currentUser!.id})');
+        print('═══════════════════════════════════════════════════════');
+        return artisanId;
+      } else {
+        print('⚠️ [ChatProvider] WARNING: User is artisan but artisanId is null or empty!');
+        print('⚠️ [ChatProvider] Falling back to userId: ${_currentUser!.id}');
+        print('═══════════════════════════════════════════════════════');
+        // Fallback to userId if artisanId is not set
+        return _currentUser!.id.trim();
+      }
+    }
+    
+    // For regular users, use their userId
+    print('✅ [ChatProvider] User is regular user, using userId: ${_currentUser!.id}');
+    print('═══════════════════════════════════════════════════════');
+    return _currentUser!.id.trim();
+  }
+
+  // Public getter for effective user ID (used by UI to determine if message is from current user)
+  String get effectiveUserId => _getEffectiveUserId();
+
   // Load chat rooms for current user
   void _loadChatRooms() {
     if (_currentUser == null) return;
 
+    final effectiveUserId = _getEffectiveUserId();
+    if (effectiveUserId.isEmpty) {
+      print('❌ [ChatProvider] Cannot load chat rooms: effective user ID is empty');
+      _setError('لا يمكن تحديد معرف المستخدم');
+      _setLoading(false);
+      return;
+    }
+
     _setLoading(true);
     _chatRoomsSubscription?.cancel();
     
+    print('📥 [ChatProvider] Loading chat rooms for effective user ID: $effectiveUserId');
+    print('📥 [ChatProvider] User type: ${_currentUser!.userType}');
+    print('📥 [ChatProvider] User ID: ${_currentUser!.id}');
+    print('📥 [ChatProvider] Artisan ID: ${_currentUser!.artisanId ?? 'null'}');
+    
     _chatRoomsSubscription = _chatService
-        .getChatRoomsForUser(_currentUser!.id)
+        .getChatRoomsForUser(effectiveUserId)
         .listen(
       (rooms) {
         _chatRooms = rooms;
         _setLoading(false);
+        print('✅ [ChatProvider] Loaded ${rooms.length} chat rooms');
         notifyListeners();
       },
       onError: (error) {
         _setError('فشل في تحميل المحادثات: $error');
         _setLoading(false);
+        print('❌ [ChatProvider] Error loading chat rooms: $error');
       },
     );
   }
@@ -58,51 +121,140 @@ class ChatProvider with ChangeNotifier {
   List<ChatRoom> getFilteredChatRooms() {
     if (_currentUser == null) return [];
     
-    // إذا كان المستخدم حرفي، اعرض جميع المحادثات
-    if (_currentUser!.userType == 'artisan') {
-      return _chatRooms;
-    }
+    // Use effective user ID (artisanId for artisans, userId for regular users)
+    final effectiveUserId = _getEffectiveUserId();
+    if (effectiveUserId.isEmpty) return [];
     
-    // إذا كان المستخدم عادي، اعرض فقط المحادثات مع الحرفيين
+    // CRITICAL: Filter rooms to ensure current user is actually a participant
+    // This is a safety check even though getChatRoomsForUser should already filter
     return _chatRooms.where((room) {
-      // هنا يمكن إضافة منطق إضافي للفلترة إذا لزم الأمر
-      return true; // حالياً نعرض جميع المحادثات
+      final participant1Id = room.participant1Id.trim();
+      final participant2Id = room.participant2Id.trim();
+      
+      // Only include rooms where effective user ID is a participant
+      final isParticipant = participant1Id == effectiveUserId || participant2Id == effectiveUserId;
+      
+      if (!isParticipant) {
+        print('⚠️ [ChatProvider] Filtered out room ${room.id} - effective user ID $effectiveUserId is not a participant (participants: $participant1Id, $participant2Id)');
+      }
+      
+      return isParticipant;
     }).toList();
   }
 
   // Open chat room
   Future<void> openChatRoom(String roomId) async {
     try {
-      _setLoading(true);
+      if (_currentUser == null) {
+        throw Exception('يجب تسجيل الدخول أولاً');
+      }
       
-      // Find the room
-      final room = _chatRooms.firstWhere((r) => r.id == roomId);
+      // Use effective user ID (artisanId for artisans, userId for regular users)
+      final effectiveUserId = _getEffectiveUserId();
+      if (effectiveUserId.isEmpty) {
+        throw Exception('لا يمكن تحديد معرف المستخدم');
+      }
+      
+      // Don't set global loading state to avoid blocking the UI
+      // The caller will show a local loading indicator
+      
+      // Try to find the room in local list first
+      ChatRoom? room;
+      try {
+        room = _chatRooms.firstWhere((r) => r.id == roomId);
+      } catch (e) {
+        // Room not in local list, fetch from database
+        print('Room not found in local list, fetching from database: $roomId');
+        room = await _chatService.getChatRoomById(roomId);
+        
+        if (room == null) {
+          throw Exception('المحادثة غير موجودة');
+        }
+      }
+      
+      // CRITICAL: Verify that current user is a participant in this room
+      final participant1Id = room.participant1Id.trim();
+      final participant2Id = room.participant2Id.trim();
+      final isParticipant = participant1Id == effectiveUserId || participant2Id == effectiveUserId;
+      
+      if (!isParticipant) {
+        print('❌ [ChatProvider] Security check failed: Effective user ID $effectiveUserId is not a participant in room $roomId (participants: $participant1Id, $participant2Id)');
+        throw Exception('ليس لديك صلاحية للوصول إلى هذه المحادثة');
+      }
+      
+      // Add to local list if not exists
+      if (!_chatRooms.any((r) => r.id == roomId)) {
+        _chatRooms.add(room);
+        notifyListeners();
+      }
+      
       _currentRoom = room;
+      notifyListeners(); // Notify that currentRoom is set
       
-      // Load messages
+      // Load messages and wait for first batch
       _messagesSubscription?.cancel();
+      
+      // Use Completer to wait for first messages load
+      final completer = Completer<void>();
+      bool hasReceivedFirstMessages = false;
+      
       _messagesSubscription = _chatService
           .getMessagesForRoom(roomId)
           .listen(
         (messages) {
           _currentMessages = messages;
+          if (!hasReceivedFirstMessages) {
+            hasReceivedFirstMessages = true;
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
+          }
           notifyListeners();
         },
         onError: (error) {
           _setError('فشل في تحميل الرسائل: $error');
+          if (!completer.isCompleted) {
+            completer.completeError(error);
+          }
         },
       );
 
-      // Mark messages as read
+      // Wait for first messages to load (with shorter timeout for better UX)
+      try {
+        await completer.future.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () {
+            // If timeout, continue anyway - messages will load via stream
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
+          },
+        );
+      } catch (e) {
+        // Continue even if there's an error
+        print('Warning: Error waiting for messages: $e');
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      }
+
+      // Mark messages as read (don't wait for it to complete)
       if (_currentUser != null) {
-        await _chatService.markAllMessagesAsRead(roomId, _currentUser!.id);
+        final effectiveUserId = _getEffectiveUserId();
+        if (effectiveUserId.isNotEmpty) {
+          _chatService.markAllMessagesAsRead(roomId, effectiveUserId).catchError((e) {
+            print('Warning: Failed to mark messages as read: $e');
+          });
+        }
       }
       
-      _setLoading(false);
       notifyListeners();
     } catch (e) {
       _setError('فشل في فتح المحادثة: $e');
-      _setLoading(false);
+      _currentRoom = null;
+      _currentMessages.clear();
+      notifyListeners();
+      rethrow; // Re-throw to let caller handle the error
     }
   }
 
@@ -114,11 +266,20 @@ class ChatProvider with ChangeNotifier {
     }
 
     try {
-      final receiverId = _currentRoom!.participant1Id == _currentUser!.id
+      final effectiveUserId = _getEffectiveUserId();
+      if (effectiveUserId.isEmpty) {
+        _setError('لا يمكن تحديد معرف المستخدم');
+        return;
+      }
+
+      final receiverId = _currentRoom!.participant1Id == effectiveUserId
           ? _currentRoom!.participant2Id
           : _currentRoom!.participant1Id;
 
-      await _chatService.sendTextMessage(_currentUser!.id, receiverId, content);
+      await _chatService.sendTextMessage(effectiveUserId, receiverId, content);
+      
+      // Refresh chat rooms list to show updated last message
+      refreshChatRooms();
     } catch (e) {
       _setError('فشل في إرسال الرسالة: $e');
     }
@@ -132,11 +293,20 @@ class ChatProvider with ChangeNotifier {
     }
 
     try {
-      final receiverId = _currentRoom!.participant1Id == _currentUser!.id
+      final effectiveUserId = _getEffectiveUserId();
+      if (effectiveUserId.isEmpty) {
+        _setError('لا يمكن تحديد معرف المستخدم');
+        return;
+      }
+
+      final receiverId = _currentRoom!.participant1Id == effectiveUserId
           ? _currentRoom!.participant2Id
           : _currentRoom!.participant1Id;
 
-      await _chatService.sendImageMessage(_currentUser!.id, receiverId, imageUrl, caption: caption);
+      await _chatService.sendImageMessage(effectiveUserId, receiverId, imageUrl, caption: caption);
+      
+      // Refresh chat rooms list to show updated last message
+      refreshChatRooms();
     } catch (e) {
       _setError('فشل في إرسال الصورة: $e');
     }
@@ -150,11 +320,20 @@ class ChatProvider with ChangeNotifier {
     }
 
     try {
-      final receiverId = _currentRoom!.participant1Id == _currentUser!.id
+      final effectiveUserId = _getEffectiveUserId();
+      if (effectiveUserId.isEmpty) {
+        _setError('لا يمكن تحديد معرف المستخدم');
+        return;
+      }
+
+      final receiverId = _currentRoom!.participant1Id == effectiveUserId
           ? _currentRoom!.participant2Id
           : _currentRoom!.participant1Id;
 
-      await _chatService.sendFileMessage(_currentUser!.id, receiverId, fileUrl, fileName, fileSize);
+      await _chatService.sendFileMessage(effectiveUserId, receiverId, fileUrl, fileName, fileSize);
+      
+      // Refresh chat rooms list to show updated last message
+      refreshChatRooms();
     } catch (e) {
       _setError('فشل في إرسال الملف: $e');
     }
@@ -168,11 +347,20 @@ class ChatProvider with ChangeNotifier {
     }
 
     try {
-      final receiverId = _currentRoom!.participant1Id == _currentUser!.id
+      final effectiveUserId = _getEffectiveUserId();
+      if (effectiveUserId.isEmpty) {
+        _setError('لا يمكن تحديد معرف المستخدم');
+        return;
+      }
+
+      final receiverId = _currentRoom!.participant1Id == effectiveUserId
           ? _currentRoom!.participant2Id
           : _currentRoom!.participant1Id;
 
-      await _chatService.sendLocationMessage(_currentUser!.id, receiverId, locationData);
+      await _chatService.sendLocationMessage(effectiveUserId, receiverId, locationData);
+      
+      // Refresh chat rooms list to show updated last message
+      refreshChatRooms();
     } catch (e) {
       _setError('فشل في إرسال الموقع: $e');
     }
@@ -186,11 +374,20 @@ class ChatProvider with ChangeNotifier {
     }
 
     try {
-      final receiverId = _currentRoom!.participant1Id == _currentUser!.id
+      final effectiveUserId = _getEffectiveUserId();
+      if (effectiveUserId.isEmpty) {
+        _setError('لا يمكن تحديد معرف المستخدم');
+        return;
+      }
+
+      final receiverId = _currentRoom!.participant1Id == effectiveUserId
           ? _currentRoom!.participant2Id
           : _currentRoom!.participant1Id;
 
-      await _chatService.sendVoiceMessage(_currentUser!.id, receiverId, voiceUrl, duration);
+      await _chatService.sendVoiceMessage(effectiveUserId, receiverId, voiceUrl, duration);
+      
+      // Refresh chat rooms list to show updated last message
+      refreshChatRooms();
     } catch (e) {
       _setError('فشل في إرسال الرسالة الصوتية: $e');
     }
@@ -213,8 +410,14 @@ class ChatProvider with ChangeNotifier {
     }
 
     try {
+      final effectiveUserId = _getEffectiveUserId();
+      if (effectiveUserId.isEmpty) {
+        _setError('لا يمكن تحديد معرف المستخدم');
+        return;
+      }
+
       _setLoading(true);
-      final room = await _chatService.createOrGetChatRoom(_currentUser!.id, otherUserId);
+      final room = await _chatService.createOrGetChatRoom(effectiveUserId, otherUserId);
       
       // Add to chat rooms if not exists
       if (!_chatRooms.any((r) => r.id == room.id)) {
@@ -237,8 +440,14 @@ class ChatProvider with ChangeNotifier {
     }
 
     try {
+      final effectiveUserId = _getEffectiveUserId();
+      if (effectiveUserId.isEmpty) {
+        _setError('لا يمكن تحديد معرف المستخدم');
+        return null;
+      }
+
       _setLoading(true);
-      final room = await _chatService.createOrGetChatRoom(_currentUser!.id, otherUserId);
+      final room = await _chatService.createOrGetChatRoom(effectiveUserId, otherUserId);
       
       // Add to chat rooms if not exists
       if (!_chatRooms.any((r) => r.id == room.id)) {
@@ -308,13 +517,64 @@ class ChatProvider with ChangeNotifier {
 
   // Get other participant info for current room
   Future<UserModel?> getOtherParticipantInfo() async {
-    if (_currentRoom == null || _currentUser == null) return null;
+    if (_currentRoom == null || _currentUser == null) {
+      print('Warning: currentRoom or currentUser is null');
+      return null;
+    }
     
-    final otherId = _currentRoom!.participant1Id == _currentUser!.id
-        ? _currentRoom!.participant2Id
-        : _currentRoom!.participant1Id;
+    // Use effective user ID (artisanId for artisans, userId for regular users)
+    final effectiveUserId = _getEffectiveUserId();
+    if (effectiveUserId.isEmpty) {
+      print('Warning: Effective user ID is empty');
+      return null;
+    }
     
-    return await getParticipantInfo(otherId);
+    // Determine the other participant ID
+    String otherId;
+    if (_currentRoom!.participant1Id == effectiveUserId) {
+      otherId = _currentRoom!.participant2Id;
+    } else if (_currentRoom!.participant2Id == effectiveUserId) {
+      otherId = _currentRoom!.participant1Id;
+    } else {
+      // Current user is not in this room, use the first participant as fallback
+      print('Warning: Effective user ID is not a participant in this room');
+      otherId = _currentRoom!.participant1Id.isNotEmpty 
+          ? _currentRoom!.participant1Id 
+          : _currentRoom!.participant2Id;
+    }
+    
+    if (otherId.isEmpty) {
+      print('Warning: Other participant ID is empty');
+      return null;
+    }
+    
+    print('Getting other participant info: $otherId (effective user ID: $effectiveUserId)');
+    
+    // Try to get user info first
+    final userInfo = await getParticipantInfo(otherId);
+    if (userInfo != null && userInfo.name.isNotEmpty) {
+      print('Found user: ${userInfo.name}');
+      return userInfo;
+    }
+    
+    // If user not found, try to get artisan info
+    final artisanInfo = await getArtisanInfo(otherId);
+    if (artisanInfo != null && artisanInfo.name.isNotEmpty) {
+      print('Found artisan: ${artisanInfo.name}');
+      // Convert ArtisanModel to UserModel for display
+      return UserModel(
+        id: artisanInfo.id,
+        name: artisanInfo.name,
+        email: artisanInfo.email,
+        phone: artisanInfo.phone,
+        profileImageUrl: artisanInfo.profileImageUrl,
+        createdAt: artisanInfo.createdAt,
+        updatedAt: artisanInfo.updatedAt,
+      );
+    }
+    
+    print('Warning: Could not find user or artisan with ID: $otherId');
+    return null;
   }
 
   // Close current chat room

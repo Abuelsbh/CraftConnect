@@ -1,14 +1,19 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../Models/artisan_model.dart';
 import '../../providers/simple_auth_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/app_provider.dart';
+import '../../services/review_service.dart';
 
 
 class CraftDetailsScreen extends StatefulWidget {
@@ -20,11 +25,23 @@ class CraftDetailsScreen extends StatefulWidget {
   State<CraftDetailsScreen> createState() => _CraftDetailsScreenState();
 }
 
+enum SortType {
+  none,
+  rating,
+  distance,
+}
+
 class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
   bool _isLoading = true;
+  bool _isSearching = false;
   List<ArtisanModel> _artisans = [];
+  List<ArtisanModel> _filteredArtisans = [];
   String _craftName = '';
+  String _searchQuery = '';
+  SortType _sortType = SortType.distance; // افتراضياً حسب المسافة
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -35,30 +52,65 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
   void _loadCraftDetails() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // تحميل الحرفيين من Firebase حسب نوع الحرفة
+      // التأكد من الحصول على موقع المستخدم
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      if (appProvider.currentPosition == null) {
+        await appProvider.loadInitialData();
+      }
+      // تحميل الحرفيين من Firebase حسب نوع الحرفة (المتاحين فقط)
       final querySnapshot = await _firestore
           .collection('artisans')
           .where('craftType', isEqualTo: widget.craftId)
+          .where('isAvailable', isEqualTo: true)
           .get();
 
       final List<ArtisanModel> artisans = [];
+      final reviewService = ReviewService();
 
+      // تحميل بيانات الحرفيين مع حساب rating و reviewCount من التقييمات الفعلية
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
-        artisans.add(ArtisanModel.fromJson(data));
+        final artisan = ArtisanModel.fromJson(data);
+        
+        // حساب rating و reviewCount من التقييمات الفعلية
+        try {
+          final actualRating = await reviewService.getAverageRating(artisan.id);
+          final actualReviewCount = await reviewService.getReviewCount(artisan.id);
+          
+          // تحديث بيانات الحرفي بالقيم الفعلية
+          artisans.add(artisan.copyWith(
+            rating: actualRating,
+            reviewCount: actualReviewCount,
+          ));
+        } catch (e) {
+          // في حالة الخطأ، نستخدم القيم المخزنة
+          print('تحذير: فشل في حساب rating للحرفي ${artisan.id}: $e');
+          artisans.add(artisan);
+        }
       }
 
       setState(() {
         _craftName = _getCraftName(widget.craftId);
         _artisans = artisans;
+        _filteredArtisans = List.from(artisans);
         _isLoading = false;
       });
+      
+      // تطبيق البحث والترتيب بعد التحميل
+      _applyFilters();
 
       print('✅ تم تحميل ${artisans.length} حرفي من نوع ${widget.craftId}');
     } catch (e) {
@@ -66,6 +118,7 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
       setState(() {
         _craftName = _getCraftName(widget.craftId);
         _artisans = [];
+        _filteredArtisans = [];
         _isLoading = false;
       });
     }
@@ -77,8 +130,9 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: isDarkMode ? Colors.grey[900] : Colors.grey[300],
       appBar: _buildAppBar(),
       body: _isLoading ? _buildLoadingState() : _buildContent(),
     );
@@ -88,39 +142,153 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
     return AppBar(
       backgroundColor: Theme.of(context).colorScheme.surface,
       elevation: 0,
-      leading: IconButton(
-        onPressed: () => context.pop(),
-        icon: Icon(
-          Icons.arrow_back_ios_rounded,
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
-      title: Text(
-        _craftName,
-        style: TextStyle(
-          fontSize: 20.sp,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
+      leading: _isSearching
+          ? IconButton(
+              onPressed: () {
+                setState(() {
+                  _isSearching = false;
+                  _searchQuery = '';
+                  _searchController.clear();
+                });
+                _applyFilters();
+                _searchFocusNode.unfocus();
+              },
+              icon: Icon(
+                Icons.arrow_back_ios_rounded,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            )
+          : IconButton(
+              onPressed: () => context.pop(),
+              icon: Icon(
+                Icons.arrow_back_ios_rounded,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+      title: _isSearching
+          ? TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              autofocus: true,
+              style: TextStyle(
+                fontSize: 16.sp,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              decoration: InputDecoration(
+                hintText: 'ابحث عن حرفي...',
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+                _applyFilters();
+              },
+            )
+          : Text(
+              _craftName,
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
       actions: [
-        IconButton(
-          onPressed: () {
-            // TODO: تنفيذ البحث
-          },
+        if (!_isSearching)
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _isSearching = true;
+              });
+              // تفعيل focus بعد بناء الـ widget
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _searchFocusNode.requestFocus();
+              });
+            },
+            icon: Icon(
+              Icons.search_rounded,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        if (_isSearching && _searchQuery.isNotEmpty)
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _searchQuery = '';
+                _searchController.clear();
+              });
+              _applyFilters();
+            },
+            icon: Icon(
+              Icons.clear_rounded,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        PopupMenuButton<SortType>(
           icon: Icon(
-            Icons.search_rounded,
+            Icons.sort_rounded,
             color: Theme.of(context).colorScheme.onSurface,
           ),
-        ),
-        IconButton(
-          onPressed: () {
-            // TODO: تنفيذ الفلترة
+          onSelected: (SortType sortType) {
+            setState(() {
+              _sortType = sortType;
+            });
+            _applyFilters();
           },
-          icon: Icon(
-            Icons.filter_list_rounded,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
+          itemBuilder: (BuildContext context) => [
+            PopupMenuItem<SortType>(
+              value: SortType.none,
+              child: Row(
+                children: [
+                  Icon(
+                    _sortType == SortType.none ? Icons.check : Icons.close,
+                    size: 20.w,
+                    color: _sortType == SortType.none
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                  ),
+                  SizedBox(width: 8.w),
+                  Text(AppLocalizations.of(context)?.translate('no_sort_option') ?? 'بدون ترتيب'),
+                ],
+              ),
+            ),
+            PopupMenuItem<SortType>(
+              value: SortType.rating,
+              child: Row(
+                children: [
+                  Icon(
+                    _sortType == SortType.rating ? Icons.check : Icons.star,
+                    size: 20.w,
+                    color: _sortType == SortType.rating
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.amber,
+                  ),
+                  SizedBox(width: 8.w),
+                  Text(AppLocalizations.of(context)?.translate('sort_by_rating_option') ?? 'حسب التقييم'),
+                ],
+              ),
+            ),
+            PopupMenuItem<SortType>(
+              value: SortType.distance,
+              child: Row(
+                children: [
+                  Icon(
+                    _sortType == SortType.distance ? Icons.check : Icons.location_on,
+                    size: 20.w,
+                    color: _sortType == SortType.distance
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.red,
+                  ),
+                  SizedBox(width: 8.w),
+                  Text(AppLocalizations.of(context)?.translate('sort_by_distance_option') ?? 'حسب المسافة'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -135,6 +303,29 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
   Widget _buildContent() {
     return Column(
       children: [
+        // عرض نوع الترتيب إذا كان محدداً
+        if (_sortType != SortType.none)
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: AppConstants.padding, vertical: 8.h),
+            color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.3),
+            child: Row(
+              children: [
+                Icon(
+                  _sortType == SortType.rating ? Icons.star : Icons.location_on,
+                  size: 16.w,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+                SizedBox(width: 8.w),
+                Text(
+                  _getSortText(),
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         _buildHeader(),
         Expanded(
           child: _buildArtisansList(),
@@ -177,7 +368,7 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
                 ),
                 SizedBox(height: 4.h),
                 Text(
-                  '${_artisans.length} ${AppLocalizations.of(context)?.translate('artisans')} • ${AppLocalizations.of(context)?.translate('sort_by_distance')}',
+                  '${_filteredArtisans.length} ${AppLocalizations.of(context)?.translate('artisans')} • ${_getSortText()}',
                   style: TextStyle(
                     fontSize: 14.sp,
                     color: Theme.of(context).colorScheme.outline,
@@ -192,25 +383,34 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
   }
 
   Widget _buildArtisansList() {
-    if (_artisans.isEmpty) {
+    if (_filteredArtisans.isEmpty) {
       return _buildEmptyState();
     }
 
     return AnimationLimiter(
-      child: ListView.builder(
+      child: GridView.builder(
         padding: EdgeInsets.all(AppConstants.padding),
-        itemCount: _artisans.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3, // 3 أعمدة في كل صف
+          crossAxisSpacing: 12.w, // زيادة المسافة الأفقية
+          mainAxisSpacing: 16.h, // زيادة المسافة العمودية
+          childAspectRatio: 0.75, // نسبة العرض إلى الارتفاع
+        ),
+        itemCount: _filteredArtisans.length,
         itemBuilder: (context, index) {
+          // حساب التأخير بناءً على موضع العنصر في الشبكة
+          final row = index ~/ 3;
+          final col = index % 3;
+          final delay = (row * 3 + col) * 50;
+          
           return AnimationConfiguration.staggeredList(
             position: index,
             duration: const Duration(milliseconds: 375),
+            delay: Duration(milliseconds: delay),
             child: SlideAnimation(
               verticalOffset: 50.0,
               child: FadeInAnimation(
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: AppConstants.padding),
-                  child: _buildArtisanCard(_artisans[index], index),
-                ),
+                child: _buildArtisanCard(_filteredArtisans[index], index),
               ),
             ),
           );
@@ -251,237 +451,264 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
     );
   }
 
+  // حساب المسافة بين موقع المستخدم وموقع الحرفي
+  double _calculateDistance(double userLat, double userLon, double artisanLat, double artisanLon) {
+    return Geolocator.distanceBetween(
+      userLat,
+      userLon,
+      artisanLat,
+      artisanLon,
+    ) / 1000; // تحويل من متر إلى كيلومتر
+  }
+
+  // الحصول على المسافة إلى حرفي
+  double? _getDistanceToArtisan(ArtisanModel artisan) {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    if (appProvider.currentPosition == null) return null;
+    
+    return _calculateDistance(
+      appProvider.currentPosition!.latitude,
+      appProvider.currentPosition!.longitude,
+      artisan.latitude,
+      artisan.longitude,
+    );
+  }
+
+  // دالة للحصول على الأحرف الأولى من الاسم
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty) return '';
+    if (parts.length == 1) {
+      return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '';
+    }
+    final firstInitial = parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '';
+    final lastInitial = parts[parts.length - 1].isNotEmpty 
+        ? parts[parts.length - 1][0].toUpperCase() 
+        : '';
+    return '$firstInitial $lastInitial';
+  }
+
+  // دالة للحصول على الاسم بصيغة "First Last" (الحرف الأول + اللقب)
+  String _getFormattedName(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty) return name;
+    if (parts.length == 1) return name;
+    final firstName = parts[0];
+    final lastName = parts[parts.length - 1];
+    if (lastName.isNotEmpty) {
+      return '$firstName ${lastName[0]}.';
+    }
+    return firstName;
+  }
+
   Widget _buildArtisanCard(ArtisanModel artisan, int index) {
-    return Card(
-      elevation: AppConstants.cardElevation,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+    final distance = _getDistanceToArtisan(artisan);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: isDarkMode ? Colors.grey[800] : Colors.white,
+        borderRadius: BorderRadius.circular(12.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: InkWell(
-        onTap: () {
-          context.push('/artisan-profile/${artisan.id}');
-        },
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-        child: Padding(
-          padding: EdgeInsets.all(AppConstants.padding),
-          child: Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // صورة الحرفي
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12.r),
-                    child: Container(
-                      width: 80.w,
-                      height: 80.w,
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                      child: Icon(
-                        Icons.person_rounded,
-                        size: 40.w,
-                        color: Theme.of(context).colorScheme.primary,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12.r),
+          onTap: () {
+            context.push('/artisan-profile/${artisan.id}');
+          },
+          child: Padding(
+            padding: EdgeInsets.all(8.w),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // صورة الحرفي (دائرية في الأعلى)
+                _buildArtisanAvatar(artisan),
+                SizedBox(height: 6.h),
+                // اسم الحرفي مع الأيقونة
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _getFormattedName(artisan.name),
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                  ),
 
-                  SizedBox(width: AppConstants.padding),
-
-                  // معلومات الحرفي
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                artisan.name,
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).colorScheme.onSurface,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 8.w,
-                                vertical: 4.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color: artisan.isAvailable
-                                    ? Colors.green.withValues(alpha: 0.1)
-                                    : Colors.red.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6.r),
-                              ),
-                              child: Text(
-                                artisan.isAvailable ? 'متاح' : 'مشغول',
-                                style: TextStyle(
-                                  fontSize: 10.sp,
-                                  color: artisan.isAvailable ? Colors.green : Colors.red,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        SizedBox(height: 4.h),
-
-                        // التقييم والخبرة
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.star_rounded,
-                              size: 16.w,
-                              color: Colors.amber,
-                            ),
-                            SizedBox(width: 4.w),
-                            Text(
-                              '${artisan.rating}',
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                            SizedBox(width: 4.w),
-                            Text(
-                              '(${artisan.reviewCount})',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                            ),
-                            SizedBox(width: 12.w),
-                            Icon(
-                              Icons.work_history_rounded,
-                              size: 16.w,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            SizedBox(width: 4.w),
-                            Text(
-                              '${artisan.yearsOfExperience} ${AppLocalizations.of(context)?.translate('years_experience')}',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        SizedBox(height: 8.h),
-
-                        // العنوان
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on_rounded,
-                              size: 16.w,
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                            SizedBox(width: 4.w),
-                            Expanded(
-                              child: Text(
-                                artisan.address,
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  color: Theme.of(context).colorScheme.outline,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Text(
-                              '${(index + 1) * 1.2} km', // محاكاة المسافة
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              SizedBox(height: AppConstants.padding),
-
-              // الوصف
-              Text(
-                artisan.description,
-                style: TextStyle(
-                  fontSize: 13.sp,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
-                  height: 1.4,
+                  ],
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-
-              SizedBox(height: AppConstants.padding),
-
-              // أزرار الإجراءات
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        _handleMessageButton(artisan);
-                      },
-                      icon: Icon(
-                        Icons.chat_rounded,
-                        size: 18.w,
-                      ),
-                      label: Text(
-                        AppLocalizations.of(context)?.translate('message') ?? '',
-                        style: TextStyle(fontSize: 14.sp),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                        side: BorderSide(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
+                SizedBox(height: 4.h),
+                // التقييم مع النجوم
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ...List.generate(5, (starIndex) {
+                      return Icon(
+                        starIndex < artisan.rating.floor()
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                        size: 12.w,
+                        color: Colors.amber,
+                      );
+                    }),
+                    SizedBox(width: 4.w),
+                    Text(
+                      artisan.rating > 0 ? artisan.rating.toStringAsFixed(1) : '0.0',
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
-                  ),
-
-                  SizedBox(width: AppConstants.smallPadding),
-
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        context.push('/artisan-profile/${artisan.id}');
-                      },
-                      icon: Icon(
-                        Icons.person_rounded,
-                        size: 18.w,
+                  ],
+                ),
+                // المسافة (إذا كانت متاحة)
+                if (distance != null) ...[
+                  SizedBox(height: 4.h),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.location_on_rounded,
+                        size: 10.w,
+                        color: Theme.of(context).colorScheme.outline,
                       ),
-                      label: Text(
-                        AppLocalizations.of(context)?.translate('view_profile') ?? '',
-                        style: TextStyle(fontSize: 14.sp),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.r),
+                      SizedBox(width: 2.w),
+                      Text(
+                        '${distance.toStringAsFixed(1)} كم',
+                        style: TextStyle(
+                          fontSize: 10.sp,
+                          color: Theme.of(context).colorScheme.outline,
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildArtisanAvatar(ArtisanModel artisan) {
+    final profileImage = artisan.profileImageUrl;
+    
+    return Container(
+      width: 50.w,
+      height: 50.w,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+      ),
+      child: profileImage != null && profileImage.isNotEmpty
+          ? (_isBase64Image(profileImage)
+              ? _buildBase64Image(profileImage)
+              : _buildNetworkImage(profileImage))
+          : Container(
+              width: 50.w,
+              height: 50.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              ),
+              child: Center(
+                child: Text(
+                  _getInitials(artisan.name),
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildBase64Image(String imageData) {
+    try {
+      final imageBytes = base64Decode(imageData);
+      return ClipOval(
+        child: Image.memory(
+          imageBytes,
+          fit: BoxFit.cover,
+          width: 50.w,
+          height: 50.w,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              width: 50.w,
+              height: 50.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              ),
+              child: Icon(
+                Icons.person_rounded,
+                size: 25.w,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      return Container(
+        width: 50.w,
+        height: 50.w,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+        ),
+        child: Icon(
+          Icons.person_rounded,
+          size: 25.w,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      );
+    }
+  }
+
+  Widget _buildNetworkImage(String imageUrl) {
+    return ClipOval(
+      child: Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        width: 50.w,
+        height: 50.w,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: 50.w,
+            height: 50.w,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+            ),
+            child: Icon(
+              Icons.person_rounded,
+              size: 25.w,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          );
+        },
       ),
     );
   }
@@ -580,4 +807,74 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
         return Icons.work_rounded;
     }
   }
+
+  // دالة مساعدة للتحقق من نوع الصورة (base64 أم URL)
+  bool _isBase64Image(String? imageData) {
+    if (imageData == null || imageData.isEmpty) return false;
+    // التحقق من أن الصورة ليست URL
+    if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
+      return false;
+    }
+    // محاولة فك تشفير base64
+    try {
+      base64Decode(imageData);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // تطبيق البحث والترتيب
+  void _applyFilters() {
+    List<ArtisanModel> filtered = List.from(_artisans);
+
+    // البحث بالاسم
+    if (_searchQuery.isNotEmpty) {
+      filtered = filtered.where((artisan) {
+        return artisan.name.toLowerCase().contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+
+    // الترتيب
+    if (_sortType == SortType.rating) {
+      filtered.sort((a, b) => b.rating.compareTo(a.rating));
+    } else if (_sortType == SortType.distance) {
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      if (appProvider.currentPosition != null) {
+        filtered.sort((a, b) {
+          final distanceA = _calculateDistance(
+            appProvider.currentPosition!.latitude,
+            appProvider.currentPosition!.longitude,
+            a.latitude,
+            a.longitude,
+          );
+          final distanceB = _calculateDistance(
+            appProvider.currentPosition!.latitude,
+            appProvider.currentPosition!.longitude,
+            b.latitude,
+            b.longitude,
+          );
+          return distanceA.compareTo(distanceB);
+        });
+      }
+    }
+
+    setState(() {
+      _filteredArtisans = filtered;
+    });
+  }
+
+  // الحصول على نص نوع الترتيب
+  String _getSortText() {
+    switch (_sortType) {
+      case SortType.rating:
+        return AppLocalizations.of(context)?.translate('sort_by_rating') ?? 'مرتب حسب التقييم';
+      case SortType.distance:
+        return AppLocalizations.of(context)?.translate('sort_by_distance') ?? 'مرتب حسب المسافة';
+      case SortType.none:
+        return AppLocalizations.of(context)?.translate('no_sort') ?? 'بدون ترتيب';
+    }
+  }
+
+
 } 

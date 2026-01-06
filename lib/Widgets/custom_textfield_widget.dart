@@ -120,7 +120,9 @@ class CustomTextFieldWidget extends StatelessWidget {
         textCapitalization: TextCapitalization.words,
         maxLines: maxLine ?? 1,
         minLines:minLines?? 1 ,
-        keyboardType: textInputType,
+        keyboardType: (maxLine != null && maxLine! > 1 && textInputAction == TextInputAction.newline)
+            ? TextInputType.multiline
+            : (textInputType ?? TextInputType.text),
         style: style ?? TextStyleHelper.of(context).s16SemiBoldTextStyle.copyWith(color: ThemeClass.of(context).darkGreyColor),
       ),
     );

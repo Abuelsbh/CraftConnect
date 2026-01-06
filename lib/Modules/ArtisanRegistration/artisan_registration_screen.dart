@@ -7,7 +7,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
+import '../../core/Language/app_languages.dart';
 import '../../providers/artisan_provider.dart';
+import '../../services/craft_service.dart';
 import '../../providers/simple_auth_provider.dart';
 import '../../services/artisan_service.dart';
 import '../../Models/artisan_model.dart';
@@ -38,12 +40,54 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
   double? _latitude;
   double? _longitude;
   
-  final List<String> _craftTypes = AppConstants.defaultCraftTypes;
+  // أنواع الحرف - يتم تحميلها من Firebase
+  final CraftService _craftService = CraftService();
+  List<Map<String, String>> _craftTypes = [];
+  bool _isLoadingCrafts = true;
 
   @override
   void initState() {
     super.initState();
     _getCurrentLocation();
+    _loadCrafts();
+  }
+
+  /// تحميل أنواع الحرف من Firebase
+  Future<void> _loadCrafts() async {
+    setState(() {
+      _isLoadingCrafts = true;
+    });
+
+    try {
+      final languageProvider = Provider.of<AppLanguage>(context, listen: false);
+      final languageCode = languageProvider.appLang.name;
+      
+      final crafts = await _craftService.getCraftsAsMap(languageCode);
+      
+      if (mounted) {
+        setState(() {
+          _craftTypes = crafts;
+          _isLoadingCrafts = false;
+        });
+      }
+    } catch (e) {
+      print('خطأ في تحميل الحرف: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCrafts = false;
+          // استخدام القيم الافتراضية في حالة الخطأ
+          final languageProvider = Provider.of<AppLanguage>(context, listen: false);
+          final languageCode = languageProvider.appLang.name;
+          _craftService.getCraftsAsMap(languageCode).then((crafts) {
+            if (mounted) {
+              setState(() {
+                _craftTypes = crafts;
+              });
+            }
+          });
+        });
+      }
+    }
   }
 
   @override
@@ -455,14 +499,14 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
               borderRadius: BorderRadius.circular(12.r),
             ),
           ),
-          items: _craftTypes.map((craft) {
-            return DropdownMenuItem(
-              value: craft,
-              child: Text(
-                AppLocalizations.of(context)?.translate(craft) ?? craft,
-              ),
-            );
-          }).toList(),
+          items: _isLoadingCrafts
+              ? [const DropdownMenuItem(value: null, child: Center(child: CircularProgressIndicator()))]
+              : _craftTypes.map((craft) {
+                  return DropdownMenuItem(
+                    value: craft['value'],
+                    child: Text(craft['label'] ?? craft['value'] ?? ''),
+                  );
+                }).toList(),
           onChanged: (value) {
             setState(() {
               _selectedCraftType = value!;
@@ -736,7 +780,7 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
           children: [
             ListTile(
               leading: Icon(Icons.camera_alt_rounded),
-              title: Text('التقاط صورة'),
+              title: Text(AppLocalizations.of(context)?.translate('take_photo_title') ?? 'التقاط صورة'),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.camera, isProfile);
@@ -744,7 +788,7 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
             ),
             ListTile(
               leading: Icon(Icons.photo_library_rounded),
-              title: Text('اختيار من المعرض'),
+              title: Text(AppLocalizations.of(context)?.translate('select_from_gallery_title') ?? 'اختيار من المعرض'),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.gallery, isProfile);

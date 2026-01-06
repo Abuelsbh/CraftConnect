@@ -23,6 +23,8 @@ import 'providers/app_provider.dart';
 import 'providers/simple_auth_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/artisan_provider.dart';
+import 'providers/fault_provider.dart';
+import 'providers/favorite_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,7 +48,7 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // تمكين Firebase
+  // تمكين Firebase مع معالجة أفضل للأخطاء
   try {
     if (kIsWeb) {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -56,12 +58,22 @@ Future<void> main() async {
     } else {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     }
-    
-    // تهيئة Firebase Storage
-    FirebaseStorage.instance;
-    debugPrint('✅ تم تهيئة Firebase Storage بنجاح');
+
+    // تهيئة Firebase Storage مع فحص الاتصال
+    final storage = FirebaseStorage.instance;
+
+    // اختبار الاتصال بـ Firebase Storage
+    try {
+      await storage.ref().listAll();
+      debugPrint('✅ تم تهيئة Firebase Storage بنجاح');
+    } catch (e) {
+      debugPrint('⚠️ تحذير: مشكلة في اتصال Firebase Storage: $e');
+      // لا نوقف التطبيق، فقط نطبع تحذير
+    }
+
   } catch (e) {
     debugPrint('❌ خطأ في تهيئة Firebase: $e');
+    // يمكن إضافة معالجة إضافية هنا إذا لزم الأمر
   }
 
   RushSetup.init(
@@ -90,6 +102,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<SimpleAuthProvider>(create: (_) => SimpleAuthProvider()),
         ChangeNotifierProvider<ChatProvider>(create: (_) => ChatProvider()),
         ChangeNotifierProvider<ArtisanProvider>(create: (_) => ArtisanProvider()),
+        ChangeNotifierProvider<FaultProvider>(create: (_) => FaultProvider()),
+        ChangeNotifierProvider<FavoriteProvider>(create: (_) => FavoriteProvider()),
+        ChangeNotifierProvider<FontProvider>(create: (_) => FontProvider()),
         ChangeNotifierProvider<ThemeProvider>(
           create: (_) {
             final provider = ThemeProvider();
@@ -97,7 +112,6 @@ class MyApp extends StatelessWidget {
             return provider;
           },
         ),
-        ChangeNotifierProvider<FontProvider>(create: (_) => FontProvider()),
         ChangeNotifierProvider<AppLanguage>(
           create: (_) {
             final provider = AppLanguage();
@@ -114,7 +128,7 @@ class MyApp extends StatelessWidget {
             splitScreenMode: true,
             useInheritedMediaQuery: true,
             builder: (context, child) => MaterialApp.router(
-              title: 'حرفيون',
+              title: 'PIX & FIX',
               debugShowCheckedModeBanner: false,
               
               // تحسين الأداء

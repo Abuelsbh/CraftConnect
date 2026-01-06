@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
-import '../../providers/artisan_provider.dart';
+import '../../providers/artisan_provider.dart' show ArtisanProvider, SortType;
+import '../../providers/app_provider.dart';
 import '../../Models/artisan_model.dart';
 
 class ArtisanListScreen extends StatefulWidget {
@@ -22,18 +24,36 @@ class ArtisanListScreen extends StatefulWidget {
 }
 
 class _ArtisanListScreenState extends State<ArtisanListScreen> {
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final artisanProvider = Provider.of<ArtisanProvider>(context, listen: false);
-      artisanProvider.loadArtisansByCraftType(widget.craftType);
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      
+      // تعيين موقع المستخدم للترتيب حسب المسافة
+      artisanProvider.setUserPosition(appProvider.currentPosition);
+      
+      artisanProvider.loadArtisansByCraftType(widget.craftType).then((_) {
+        // تحديث الموقع مرة أخرى بعد تحميل الحرفيين
+        artisanProvider.setUserPosition(appProvider.currentPosition);
+      });
     });
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: isDarkMode ? Colors.grey[900] : Colors.grey[300],
       appBar: AppBar(
         title: Text(widget.craftName),
         centerTitle: true,
@@ -41,7 +61,78 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
           IconButton(
             icon: Icon(Icons.search),
             onPressed: () {
-              // TODO: إضافة البحث
+              print('Search button pressed');
+              _showSearchDialog();
+            },
+          ),
+          Consumer<ArtisanProvider>(
+            builder: (context, artisanProvider, child) {
+              return PopupMenuButton<SortType>(
+                icon: Icon(Icons.sort),
+                onSelected: (SortType sortType) {
+                  print('Sort type selected: $sortType');
+                  artisanProvider.setSortType(sortType);
+                },
+                itemBuilder: (BuildContext menuContext) {
+                  final currentSortType = artisanProvider.sortType;
+                  return [
+                    PopupMenuItem<SortType>(
+                      value: SortType.none,
+                      child: Row(
+                        children: [
+                          Icon(
+                            currentSortType == SortType.none
+                                ? Icons.check
+                                : Icons.close,
+                            size: 20.w,
+                            color: currentSortType == SortType.none
+                                ? Theme.of(menuContext).colorScheme.primary
+                                : null,
+                          ),
+                          SizedBox(width: 8.w),
+                          Text(AppLocalizations.of(context)?.translate('no_sort') ?? 'بدون ترتيب'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem<SortType>(
+                      value: SortType.rating,
+                      child: Row(
+                        children: [
+                          Icon(
+                            currentSortType == SortType.rating
+                                ? Icons.check
+                                : Icons.star,
+                            size: 20.w,
+                            color: currentSortType == SortType.rating
+                                ? Theme.of(menuContext).colorScheme.primary
+                                : Theme.of(menuContext).colorScheme.tertiary,
+                          ),
+                          SizedBox(width: 8.w),
+                          Text(AppLocalizations.of(context)?.translate('sort_by_rating') ?? 'حسب التقييم'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem<SortType>(
+                      value: SortType.distance,
+                      child: Row(
+                        children: [
+                          Icon(
+                            currentSortType == SortType.distance
+                                ? Icons.check
+                                : Icons.location_on,
+                            size: 20.w,
+                            color: currentSortType == SortType.distance
+                                ? Theme.of(menuContext).colorScheme.primary
+                                : Theme.of(menuContext).colorScheme.error,
+                          ),
+                          SizedBox(width: 8.w),
+                          Text(AppLocalizations.of(context)?.translate('sort_by_distance') ?? 'حسب المسافة'),
+                        ],
+                      ),
+                    ),
+                  ];
+                },
+              );
             },
           ),
         ],
@@ -112,7 +203,7 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
                   ),
                   SizedBox(height: 8.h),
                   Text(
-                    'لا يوجد حرفيين متاحين في هذه الفئة حالياً',
+                    AppLocalizations.of(context)?.translate('no_artisans_in_category') ?? 'لا يوجد حرفيين متاحين في هذه الفئة حالياً',
                     style: TextStyle(
                       fontSize: 14.sp,
                       color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.7),
@@ -126,10 +217,71 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
 
           return Column(
             children: [
+              // عرض استعلام البحث إذا كان موجوداً
+              if (artisanProvider.searchQuery.isNotEmpty)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: AppConstants.padding, vertical: 8.h),
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  child: Row(
+                    children: [
+                      Icon(Icons.search, size: 16.w, color: Theme.of(context).colorScheme.primary),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: Text(
+                          '${AppLocalizations.of(context)?.translate('search') ?? 'البحث'}: ${artisanProvider.searchQuery}',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, size: 18.w),
+                        onPressed: () {
+                          _searchController.clear();
+                          artisanProvider.setSearchQuery('');
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ),
+              // عرض نوع الترتيب إذا كان محدداً
+              if (artisanProvider.sortType != SortType.none)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: AppConstants.padding, vertical: 8.h),
+                  color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.3),
+                  child: Row(
+                    children: [
+                      Icon(
+                        artisanProvider.sortType == SortType.rating ? Icons.star : Icons.location_on,
+                        size: 16.w,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                      SizedBox(width: 8.w),
+                      Text(
+                        artisanProvider.sortType == SortType.rating
+                            ? (AppLocalizations.of(context)?.translate('sorted_by_rating') ?? 'مرتب حسب التقييم')
+                            : (AppLocalizations.of(context)?.translate('sorted_by_distance') ?? 'مرتب حسب المسافة'),
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: Theme.of(context).colorScheme.secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               _buildFilterChips(artisanProvider),
               Expanded(
-                child: ListView.builder(
+                child: GridView.builder(
                   padding: EdgeInsets.all(AppConstants.padding),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4, // 4 أعمدة مثل الصورة
+                    crossAxisSpacing: 8.w,
+                    mainAxisSpacing: 12.h,
+                    childAspectRatio: 0.7, // نسبة العرض إلى الارتفاع
+                  ),
                   itemCount: artisans.length,
                   itemBuilder: (context, index) {
                     final artisan = artisans[index];
@@ -153,28 +305,28 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
         children: [
           _buildFilterChip(
             'all',
-            'الكل',
+            AppLocalizations.of(context)?.translate('all') ?? 'الكل',
             artisanProvider.selectedCraftType == 'all',
             artisanProvider.artisans.length,
             () => artisanProvider.selectCraftType('all'),
           ),
           _buildFilterChip(
             'available',
-            'متاح',
+            AppLocalizations.of(context)?.translate('available') ?? 'متاح',
             artisanProvider.selectedCraftType == 'available',
             artisanProvider.availableArtisans.length,
             () => artisanProvider.selectCraftType('available'),
           ),
           _buildFilterChip(
             'high_rating',
-            'تقييم عالي',
+            AppLocalizations.of(context)?.translate('high_rating') ?? 'تقييم عالي',
             artisanProvider.selectedCraftType == 'high_rating',
             artisanProvider.getArtisansByRating(4.0).length,
             () => artisanProvider.selectCraftType('high_rating'),
           ),
           _buildFilterChip(
             'experienced',
-            'خبرة عالية',
+            AppLocalizations.of(context)?.translate('experienced') ?? 'خبرة عالية',
             artisanProvider.selectedCraftType == 'experienced',
             artisanProvider.getArtisansByExperience(5).length,
             () => artisanProvider.selectCraftType('experienced'),
@@ -195,7 +347,7 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
               label,
               style: TextStyle(
                 fontSize: 12.sp,
-                color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+                color: isSelected ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -203,14 +355,14 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
               decoration: BoxDecoration(
-                color: (isSelected ? Colors.white : Theme.of(context).colorScheme.primary).withValues(alpha: 0.2),
+                color: (isSelected ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.primary).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8.r),
               ),
               child: Text(
                 '$count',
                 style: TextStyle(
                   fontSize: 10.sp,
-                  color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+                  color: isSelected ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -219,9 +371,9 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
         ),
         selected: isSelected,
         onSelected: (_) => onTap(),
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         selectedColor: Theme.of(context).colorScheme.primary,
-        checkmarkColor: Colors.white,
+        checkmarkColor: Theme.of(context).colorScheme.onPrimary,
         side: BorderSide(
           color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
           width: 2,
@@ -232,15 +384,18 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
   }
 
   Widget _buildArtisanCard(ArtisanModel artisan) {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final distance = _calculateDistance(artisan, appProvider);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
-      margin: EdgeInsets.only(bottom: 16.h),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16.r),
+        color: isDarkMode ? Colors.grey[800] : Colors.white,
+        borderRadius: BorderRadius.circular(12.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
+            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
@@ -248,29 +403,27 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16.r),
+          borderRadius: BorderRadius.circular(12.r),
           onTap: () {
-            context.push('/craft-details/${artisan.craftType}');
+            context.push('/artisan-profile/${artisan.id}');
           },
           child: Padding(
-            padding: EdgeInsets.all(16.w),
-            child: Row(
+            padding: EdgeInsets.all(8.w),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
+                // صورة الحرفي (دائرية)
                 _buildArtisanAvatar(artisan),
-                SizedBox(width: 16.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildArtisanName(artisan),
-                      SizedBox(height: 4.h),
-                      _buildArtisanInfo(artisan),
-                      SizedBox(height: 8.h),
-                      _buildArtisanRating(artisan),
-                    ],
-                  ),
-                ),
-                _buildActionButtons(artisan),
+                SizedBox(height: 6.h),
+                // اسم الحرفي
+                _buildArtisanName(artisan),
+                SizedBox(height: 3.h),
+                // المسافة
+                if (distance != null) _buildDistance(distance),
+                SizedBox(height: 3.h),
+                // التقييم
+                _buildArtisanRating(artisan),
               ],
             ),
           ),
@@ -281,35 +434,48 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
 
   Widget _buildArtisanAvatar(ArtisanModel artisan) {
     return Container(
-      width: 60.w,
-      height: 60.w,
+      width: 50.w,
+      height: 50.w,
       decoration: BoxDecoration(
+        shape: BoxShape.circle,
         color: _getCraftColor(artisan.craftType).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(
-          color: _getCraftColor(artisan.craftType).withValues(alpha: 0.3),
-          width: 2,
-        ),
       ),
       child: artisan.profileImageUrl.isNotEmpty
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(10.r),
+          ? ClipOval(
               child: Image.network(
                 artisan.profileImageUrl,
                 fit: BoxFit.cover,
+                width: 50.w,
+                height: 50.w,
                 errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    _getCraftIcon(artisan.craftType),
-                    size: 30.w,
-                    color: _getCraftColor(artisan.craftType),
+                  return Container(
+                    width: 50.w,
+                    height: 50.w,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _getCraftColor(artisan.craftType).withValues(alpha: 0.1),
+                    ),
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 25.w,
+                      color: _getCraftColor(artisan.craftType),
+                    ),
                   );
                 },
               ),
             )
-          : Icon(
-              _getCraftIcon(artisan.craftType),
-              size: 30.w,
-              color: _getCraftColor(artisan.craftType),
+          : Container(
+              width: 50.w,
+              height: 50.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _getCraftColor(artisan.craftType).withValues(alpha: 0.1),
+              ),
+              child: Icon(
+                Icons.person_rounded,
+                size: 25.w,
+                color: _getCraftColor(artisan.craftType),
+              ),
             ),
     );
   }
@@ -318,108 +484,70 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
     return Text(
       artisan.name,
       style: TextStyle(
-        fontSize: 16.sp,
-        fontWeight: FontWeight.bold,
+        fontSize: 12.sp,
+        fontWeight: FontWeight.w600,
         color: Theme.of(context).colorScheme.onSurface,
       ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
     );
   }
 
-  Widget _buildArtisanInfo(ArtisanModel artisan) {
-    return Text(
-      '${_getCraftNameArabic(artisan.craftType)} • ${artisan.yearsOfExperience} ${AppLocalizations.of(context)?.translate('years_experience') ?? 'سنوات خبرة'}',
-      style: TextStyle(
-        fontSize: 14.sp,
-        color: Theme.of(context).colorScheme.outline,
-      ),
+  Widget _buildDistance(double distance) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.location_on_rounded,
+          size: 12.w,
+          color: Theme.of(context).colorScheme.outline,
+        ),
+        SizedBox(width: 2.w),
+        Text(
+          '${distance.toStringAsFixed(1)} ${AppLocalizations.of(context)?.translate('km') ?? 'كم'}',
+          style: TextStyle(
+            fontSize: 10.sp,
+            color: Theme.of(context).colorScheme.outline,
+          ),
+        ),
+      ],
     );
+  }
+
+  double? _calculateDistance(ArtisanModel artisan, AppProvider appProvider) {
+    if (appProvider.currentPosition == null) return null;
+    
+    return Geolocator.distanceBetween(
+      appProvider.currentPosition!.latitude,
+      appProvider.currentPosition!.longitude,
+      artisan.latitude,
+      artisan.longitude,
+    ) / 1000; // تحويل من متر إلى كيلومتر
   }
 
   Widget _buildArtisanRating(ArtisanModel artisan) {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
-          Icons.star,
-          size: 16.w,
-          color: Colors.amber,
+          Icons.star_rounded,
+          size: 14.w,
+          color: Theme.of(context).colorScheme.tertiary,
         ),
-        SizedBox(width: 4.w),
+        SizedBox(width: 2.w),
         Text(
           '${artisan.rating.toStringAsFixed(1)}',
           style: TextStyle(
-            fontSize: 14.sp,
+            fontSize: 12.sp,
             fontWeight: FontWeight.w600,
             color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
-        SizedBox(width: 8.w),
-        Text(
-          '(${artisan.reviewCount} ${AppLocalizations.of(context)?.translate('reviews') ?? 'تقييم'})',
-          style: TextStyle(
-            fontSize: 12.sp,
-            color: Theme.of(context).colorScheme.outline,
-          ),
-        ),
-        if (!artisan.isAvailable) ...[
-          SizedBox(width: 8.w),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
-            decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-            child: Text(
-              'غير متاح',
-              style: TextStyle(
-                fontSize: 10.sp,
-                color: Colors.red,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
 
-  Widget _buildActionButtons(ArtisanModel artisan) {
-    return Column(
-      children: [
-        IconButton(
-          onPressed: artisan.isAvailable ? () => _callArtisan(artisan) : null,
-          icon: Icon(
-            Icons.phone,
-            color: artisan.isAvailable ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-          ),
-        ),
-        IconButton(
-          onPressed: artisan.isAvailable ? () => _messageArtisan(artisan) : null,
-          icon: Icon(
-            Icons.message,
-            color: artisan.isAvailable ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _callArtisan(ArtisanModel artisan) {
-    // TODO: تنفيذ الاتصال
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('جاري الاتصال بـ ${artisan.name}...'),
-      ),
-    );
-  }
-
-  void _messageArtisan(ArtisanModel artisan) {
-    // TODO: فتح المحادثة
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('جاري فتح المحادثة مع ${artisan.name}...'),
-      ),
-    );
-  }
 
   String _getCraftNameArabic(String craftType) {
     switch (craftType) {
@@ -470,5 +598,55 @@ class _ArtisanListScreenState extends State<ArtisanListScreen> {
       default:
         return Icons.work;
     }
+  }
+
+  void _showSearchDialog() {
+    print('_showSearchDialog called');
+    final artisanProvider = Provider.of<ArtisanProvider>(context, listen: false);
+    _searchController.text = artisanProvider.searchQuery;
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(AppLocalizations.of(context)?.translate('search_artisans') ?? 'البحث عن حرفي'),
+          content: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: AppLocalizations.of(context)?.translate('enter_artisan_name') ?? 'أدخل اسم الحرفي',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+            ),
+            autofocus: true,
+            onSubmitted: (value) {
+              final provider = Provider.of<ArtisanProvider>(context, listen: false);
+              provider.setSearchQuery(value);
+              Navigator.of(dialogContext).pop();
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _searchController.clear();
+                final provider = Provider.of<ArtisanProvider>(context, listen: false);
+                provider.setSearchQuery('');
+                Navigator.of(dialogContext).pop();
+              },
+              child: Text(AppLocalizations.of(context)?.translate('clear') ?? 'مسح'),
+            ),
+            TextButton(
+              onPressed: () {
+                final provider = Provider.of<ArtisanProvider>(context, listen: false);
+                provider.setSearchQuery(_searchController.text);
+                Navigator.of(dialogContext).pop();
+              },
+              child: Text(AppLocalizations.of(context)?.translate('search') ?? 'بحث'),
+            ),
+          ],
+        );
+      },
+    );
   }
 } 

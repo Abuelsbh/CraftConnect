@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
@@ -25,11 +26,12 @@ class _ChatInputState extends State<ChatInput> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final MediaService _mediaService = MediaService();
-  final VoiceRecorderService _voiceRecorder = VoiceRecorderService();
+  final VoiceRecorderService _voiceRecorder = VoiceRecorderService(); // الآن singleton
   
   bool _isComposing = false;
   bool _isRecording = false;
   bool _isUploading = false;
+  String? _voiceRecordingPath; // إضافة متغير مسار التسجيل
 
   @override
   void initState() {
@@ -146,8 +148,8 @@ class _ChatInputState extends State<ChatInput> {
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تم إرسال الصورة بنجاح'),
+            SnackBar(
+              content: Text(AppLocalizations.of(context)?.translate('image_sent_success') ?? 'تم إرسال الصورة بنجاح'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
@@ -183,8 +185,8 @@ class _ChatInputState extends State<ChatInput> {
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تم إرسال الصورة بنجاح'),
+            SnackBar(
+              content: Text(AppLocalizations.of(context)?.translate('image_sent_success') ?? 'تم إرسال الصورة بنجاح'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
@@ -232,15 +234,36 @@ class _ChatInputState extends State<ChatInput> {
           );
         }
       } else {
-        print('❌ لم يتم اختيار ملف');
-        if (mounted) {
-          _showErrorSnackBar('لم يتم اختيار ملف');
-        }
+        print('ℹ️ المستخدم ألغى اختيار الملف');
+        // لا نعرض رسالة خطأ إذا ألغى المستخدم الاختيار
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ خطأ في رفع الملف: $e');
+      print('❌ Stack trace: $stackTrace');
       if (mounted) {
-        _showErrorSnackBar('فشل في رفع الملف: $e');
+        String errorMessage = 'فشل في رفع الملف';
+        final errorString = e.toString().toLowerCase();
+        if (errorString.contains('permission') || 
+            errorString.contains('صلاحية') ||
+            errorString.contains('denied')) {
+          errorMessage = 'صلاحية الوصول للملفات مطلوبة. يرجى السماح بالوصول من إعدادات التطبيق';
+        } else if (errorString.contains('غير موجود') || 
+                   errorString.contains('not found') ||
+                   errorString.contains('does not exist')) {
+          errorMessage = 'الملف المحدد غير موجود';
+        } else if (errorString.contains('cancel') || 
+                   errorString.contains('ألغى')) {
+          errorMessage = ''; // لا نعرض رسالة إذا ألغى المستخدم
+        } else if (errorString.contains('picker') || 
+                   errorString.contains('محدد')) {
+          errorMessage = 'فشل في فتح محدد الملفات. تأكد من تثبيت تطبيق لإدارة الملفات';
+        } else {
+          errorMessage = 'فشل في رفع الملف. تأكد من اتصال الإنترنت وحاول مرة أخرى';
+        }
+        
+        if (errorMessage.isNotEmpty) {
+          _showErrorSnackBar(errorMessage);
+        }
       }
     } finally {
       if (mounted) {
@@ -264,8 +287,8 @@ class _ChatInputState extends State<ChatInput> {
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تم إرسال الموقع بنجاح'),
+            SnackBar(
+              content: Text(AppLocalizations.of(context)?.translate('location_sent_success') ?? 'تم إرسال الموقع بنجاح'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
@@ -291,29 +314,68 @@ class _ChatInputState extends State<ChatInput> {
 
   void _startVoiceRecording() async {
     try {
-      await _voiceRecorder.startRecording();
       setState(() => _isRecording = true);
       
+      print('🎤 بدء التسجيل الصوتي...');
+      await _voiceRecorder.startRecording();
+      
+      // التحقق من أن التسجيل بدأ بنجاح
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!_voiceRecorder.isRecording) {
+        print('⚠️ التحقق من حالة التسجيل...');
+        // محاولة أخرى بعد تأخير
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (!_voiceRecorder.isRecording) {
+          throw Exception('فشل في بدء التسجيل - المسجل لا يسجل');
+        }
+      }
+      
+      print('✅ التسجيل بدأ بنجاح');
+      
       // عرض نافذة التسجيل
-      _showRecordingDialog();
-    } catch (e) {
-      _showErrorSnackBar('فشل في بدء التسجيل: $e');
+      if (mounted) {
+        _showRecordingDialog();
+      }
+    } catch (e, stackTrace) {
+      setState(() => _isRecording = false);
+      print('❌ خطأ في بدء التسجيل: $e');
+      print('❌ Stack trace: $stackTrace');
+      
+      if (mounted) {
+        String errorMessage = 'فشل في بدء التسجيل';
+        final errorString = e.toString().toLowerCase();
+        if (errorString.contains('صلاحية') || 
+            errorString.contains('permission') ||
+            errorString.contains('denied') ||
+            errorString.contains('مطلوبة')) {
+          errorMessage = 'صلاحية الميكروفون مطلوبة. يرجى السماح بالوصول من إعدادات التطبيق';
+        } else if (errorString.contains('initialize') || 
+                   errorString.contains('تهيئة')) {
+          errorMessage = 'فشل في تهيئة المسجل. أعد تشغيل التطبيق وحاول مرة أخرى';
+        } else {
+          errorMessage = 'فشل في بدء التسجيل. تأكد من أن الميكروفون يعمل بشكل صحيح';
+        }
+        _showErrorSnackBar(errorMessage);
+      }
     }
   }
 
   void _stopVoiceRecording() async {
     try {
       final audioPath = await _voiceRecorder.stopRecording();
-      setState(() => _isRecording = false);
+      setState(() {
+        _isRecording = false;
+        _voiceRecordingPath = audioPath;
+      });
       
       if (audioPath != null) {
         setState(() => _isUploading = true);
         
-        print('🎤 بدء رفع الرسالة الصوتية...');
+        print(' بدء رفع الرسالة الصوتية...');
         final voiceUrl = await _mediaService.uploadVoiceMessage(audioPath);
         
         if (voiceUrl != null && mounted) {
-          print('📤 إرسال الرسالة الصوتية في المحادثة...');
+          print(' إرسال الرسالة الصوتية في المحادثة...');
           final chatProvider = Provider.of<ChatProvider>(context, listen: false);
           final duration = _voiceRecorder.recordingDuration.inSeconds;
           await chatProvider.sendVoiceMessage(voiceUrl, duration);
@@ -322,7 +384,7 @@ class _ChatInputState extends State<ChatInput> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('تم إرسال الرسالة الصوتية (${duration}s)'),
+                content: Text('${AppLocalizations.of(context)?.translate('voice_message_sent_success') ?? 'تم إرسال الرسالة الصوتية'} (${duration}s)'),
                 backgroundColor: Colors.green,
                 duration: const Duration(seconds: 2),
               ),
@@ -336,6 +398,9 @@ class _ChatInputState extends State<ChatInput> {
         }
       } else {
         print('❌ لم يتم تسجيل رسالة صوتية');
+        if (mounted) {
+          _showErrorSnackBar('لم يتم تسجيل رسالة صوتية صالحة');
+        }
       }
     } catch (e) {
       print('❌ خطأ في إرسال الرسالة الصوتية: $e');
@@ -352,8 +417,12 @@ class _ChatInputState extends State<ChatInput> {
   void _cancelVoiceRecording() async {
     try {
       await _voiceRecorder.cancelRecording();
-      setState(() => _isRecording = false);
+      setState(() {
+        _isRecording = false;
+        _voiceRecordingPath = null;
+      });
     } catch (e) {
+      print('❌ خطأ في إلغاء التسجيل: $e');
       _showErrorSnackBar('فشل في إلغاء التسجيل: $e');
     }
   }
@@ -362,62 +431,42 @@ class _ChatInputState extends State<ChatInput> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _buildRecordingDialog(context),
-    );
-  }
-
-  Widget _buildRecordingDialog(BuildContext context) {
-    return AlertDialog(
-      title: Text(AppLocalizations.of(context)?.translate('recording') ?? 'تسجيل...'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.mic_rounded,
-            size: 48.w,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          SizedBox(height: 16.h),
-          StreamBuilder<Duration>(
-            stream: Stream.periodic(const Duration(seconds: 1), (_) => _voiceRecorder.recordingDuration),
-            builder: (context, snapshot) {
-              return Text(
-                _voiceRecorder.formatDuration(snapshot.data ?? Duration.zero),
-                style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.bold,
-                ),
-              );
-            },
-          ),
-        ],
+      builder: (context) => _RecordingDialog(
+        voiceRecorder: _voiceRecorder,
+        onCancel: () {
+          Navigator.pop(context);
+          _cancelVoiceRecording();
+        },
+        onStop: () {
+          Navigator.pop(context);
+          _stopVoiceRecording();
+        },
       ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _cancelVoiceRecording();
-          },
-          child: Text(AppLocalizations.of(context)?.translate('cancel') ?? 'إلغاء'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _stopVoiceRecording();
-          },
-          child: Text(AppLocalizations.of(context)?.translate('stop_recording') ?? 'إيقاف التسجيل'),
-        ),
-      ],
     );
   }
 
   void _showErrorSnackBar(String message) {
+    if (mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
       ),
     );
+    }
   }
 
   @override
@@ -564,6 +613,86 @@ class _ChatInputState extends State<ChatInput> {
           minHeight: 40.h,
         ),
       ),
+    );
+  }
+}
+
+// Dialog منفصل لعرض مدة التسجيل
+class _RecordingDialog extends StatefulWidget {
+  final VoiceRecorderService voiceRecorder;
+  final VoidCallback onCancel;
+  final VoidCallback onStop;
+
+  const _RecordingDialog({
+    required this.voiceRecorder,
+    required this.onCancel,
+    required this.onStop,
+  });
+
+  @override
+  State<_RecordingDialog> createState() => _RecordingDialogState();
+}
+
+class _RecordingDialogState extends State<_RecordingDialog> {
+  Timer? _timer;
+  Duration _currentDuration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && widget.voiceRecorder.isRecording) {
+        setState(() {
+          _currentDuration = widget.voiceRecorder.recordingDuration;
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(AppLocalizations.of(context)?.translate('recording') ?? 'تسجيل...'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.mic_rounded,
+            size: 48.w,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          SizedBox(height: 16.h),
+          Text(
+            widget.voiceRecorder.formatDuration(_currentDuration),
+            style: TextStyle(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: widget.onCancel,
+          child: Text(AppLocalizations.of(context)?.translate('cancel') ?? 'إلغاء'),
+        ),
+        ElevatedButton(
+          onPressed: widget.onStop,
+          child: Text(AppLocalizations.of(context)?.translate('stop_recording') ?? 'إيقاف التسجيل'),
+        ),
+      ],
     );
   }
 } 

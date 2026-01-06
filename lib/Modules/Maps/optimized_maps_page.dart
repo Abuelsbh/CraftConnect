@@ -1,15 +1,20 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../Utilities/app_constants.dart';
 import '../../Utilities/performance_helper.dart';
 import '../../core/Language/locales.dart';
 import '../../Models/artisan_model.dart';
+import '../../providers/simple_auth_provider.dart';
+import '../../providers/chat_provider.dart';
 
 class OptimizedMapsPage extends StatefulWidget {
   const OptimizedMapsPage({super.key});
@@ -54,6 +59,11 @@ class _OptimizedMapsPageState extends State<OptimizedMapsPage>
     'plumber',
     'painter',
     'mechanic',
+    'hvac',
+    'satellite',
+    'internet',
+    'tiler',
+    'locksmith',
   ];
 
   @override
@@ -309,6 +319,16 @@ class _OptimizedMapsPageState extends State<OptimizedMapsPage>
         return BitmapDescriptor.hueGreen;
       case 'mechanic':
         return BitmapDescriptor.hueRed;
+      case 'hvac':
+        return BitmapDescriptor.hueCyan;
+      case 'satellite':
+        return BitmapDescriptor.hueMagenta;
+      case 'internet':
+        return BitmapDescriptor.hueAzure;
+      case 'tiler':
+        return BitmapDescriptor.hueRose;
+      case 'locksmith':
+        return BitmapDescriptor.hueViolet;
       default:
         return BitmapDescriptor.hueViolet;
     }
@@ -326,6 +346,16 @@ class _OptimizedMapsPageState extends State<OptimizedMapsPage>
         return 'صباغ';
       case 'mechanic':
         return 'ميكانيكي';
+      case 'hvac':
+        return 'تكييف';
+      case 'satellite':
+        return 'ستالايت';
+      case 'internet':
+        return 'إنترنت';
+      case 'tiler':
+        return 'بلاط';
+      case 'locksmith':
+        return 'أقفال';
       default:
         return craftType;
     }
@@ -343,6 +373,16 @@ class _OptimizedMapsPageState extends State<OptimizedMapsPage>
         return const Color(0xFF2E7D32);
       case 'mechanic':
         return const Color(0xFFD32F2F);
+      case 'hvac':
+        return const Color(0xFF00BCD4);
+      case 'satellite':
+        return const Color(0xFF9C27B0);
+      case 'internet':
+        return const Color(0xFF03A9F4);
+      case 'tiler':
+        return const Color(0xFFE91E63);
+      case 'locksmith':
+        return const Color(0xFF7B1FA2);
       default:
         return const Color(0xFF7B1FA2);
     }
@@ -704,33 +744,45 @@ class _OptimizedMapsPageState extends State<OptimizedMapsPage>
   }
 
   Widget _buildActionButtons(ArtisanModel artisan) {
+    final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    
+    // التحقق من أن المستخدم الحالي ليس صاحب الحساب
+    final bool isOwner = currentUser != null && 
+                        currentUser.artisanId != null && 
+                        currentUser.artisanId == artisan.id;
+    
     return Row(
       children: [
-        Expanded(
-          child: _buildActionButton(
-            icon: Icons.phone_rounded,
-            label: 'اتصال',
-            color: _getCraftColor(artisan.craftType),
-            isOutlined: true,
-            onTap: () {
-              Navigator.pop(context);
-              _makePhoneCall(artisan);
-            },
+        // زر الاتصال - يظهر فقط إذا لم يكن المستخدم صاحب الحساب
+        if (!isOwner) ...[
+          Expanded(
+            child: _buildActionButton(
+              icon: Icons.phone_rounded,
+              label: 'اتصال',
+              color: _getCraftColor(artisan.craftType),
+              isOutlined: true,
+              onTap: () {
+                Navigator.pop(context);
+                _makePhoneCall(artisan);
+              },
+            ),
           ),
-        ),
-        SizedBox(width: 12.w),
-        Expanded(
-          child: _buildActionButton(
-            icon: Icons.chat_rounded,
-            label: 'رسالة',
-            color: _getCraftColor(artisan.craftType),
-            onTap: () {
-              Navigator.pop(context);
-              _sendMessage(artisan);
-            },
+          SizedBox(width: 12.w),
+          Expanded(
+            child: _buildActionButton(
+              icon: Icons.chat_rounded,
+              label: 'رسالة',
+              color: _getCraftColor(artisan.craftType),
+              onTap: () {
+                Navigator.pop(context);
+                _sendMessage(artisan);
+              },
+            ),
           ),
-        ),
-        SizedBox(width: 12.w),
+          SizedBox(width: 12.w),
+        ],
+        // زر الملف - يظهر دائماً
         Expanded(
           child: _buildActionButton(
             icon: Icons.person_rounded,
@@ -812,31 +864,164 @@ class _OptimizedMapsPageState extends State<OptimizedMapsPage>
         return Icons.brush;
       case 'mechanic':
         return Icons.build_circle;
+      case 'hvac':
+        return Icons.ac_unit;
+      case 'satellite':
+        return Icons.satellite;
+      case 'internet':
+        return Icons.wifi;
+      case 'tiler':
+        return Icons.square_foot;
+      case 'locksmith':
+        return Icons.lock;
       default:
         return Icons.construction;
     }
   }
 
-  void _makePhoneCall(ArtisanModel artisan) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('اتصال بـ ${artisan.name}'),
-        backgroundColor: _getCraftColor(artisan.craftType),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
-      ),
-    );
+  Future<void> _makePhoneCall(ArtisanModel artisan) async {
+    if (artisan.phone.isEmpty) {
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('رقم الهاتف غير متوفر'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+          ),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $e');
+        }
+      }
+      return;
+    }
+
+    final Uri phoneUri = Uri(scheme: 'tel', path: artisan.phone);
+    
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        if (!mounted) return;
+        try {
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text('لا يمكن فتح تطبيق الاتصال'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+            ),
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('Could not show snackbar: $e');
+          }
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('فشل في الاتصال: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+          ),
+        );
+      } catch (err) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $err');
+        }
+      }
+    }
   }
 
-  void _sendMessage(ArtisanModel artisan) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('فتح محادثة مع ${artisan.name}'),
-        backgroundColor: _getCraftColor(artisan.craftType),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
-      ),
-    );
+  Future<void> _sendMessage(ArtisanModel artisan) async {
+    final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+
+    // التحقق من تسجيل الدخول
+    if (!authProvider.isLoggedIn) {
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('يجب تسجيل الدخول لإرسال رسالة'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+            action: SnackBarAction(
+              label: 'تسجيل الدخول',
+              textColor: Colors.white,
+              onPressed: () {
+                context.push('/login');
+              },
+            ),
+          ),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $e');
+        }
+      }
+      return;
+    }
+
+    try {
+      // إنشاء غرفة دردشة مع الحرفي
+      final room = await chatProvider.createChatRoomAndReturn(artisan.id);
+
+      if (room != null) {
+        // فتح غرفة الدردشة
+        await chatProvider.openChatRoom(room.id);
+
+        if (mounted) {
+          context.push('/chat-room');
+        }
+      } else {
+        if (!mounted) return;
+        try {
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text('فشل في إنشاء المحادثة'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+            ),
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('Could not show snackbar: $e');
+          }
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('فشل في فتح المحادثة: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+          ),
+        );
+      } catch (err) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $err');
+        }
+      }
+    }
   }
 
   @override

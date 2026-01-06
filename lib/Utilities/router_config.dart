@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../Modules/ArtisanProfile/ArtisanProfileScreen.dart';
-
-
+import '../Modules/ArtisanProfile/edit_artisan_profile_screen.dart';
 import '../Modules/Review/add_review_screen.dart';
+import '../Modules/Review/reviews_list_screen.dart';
 import '../Modules/ArtisanRegistration/artisan_registration_screen.dart';
 import '../Modules/Splash/splash_screen.dart';
 import '../Modules/Onboarding/onboarding_screen.dart';
@@ -16,7 +16,16 @@ import '../Modules/Auth/forgot_password_screen.dart';
 import '../Modules/Auth/phone_login_screen.dart';
 import '../Modules/Chat/chat_page.dart';
 import '../Modules/Chat/chat_room_screen.dart';
-
+import '../Modules/FaultReport/fault_report_screen.dart';
+import '../Modules/FaultReport/fault_report_details_screen.dart';
+import '../Modules/ProblemReport/problem_report_stepper_screen.dart';
+import '../Modules/Profile/edit_profile_screen.dart';
+import '../Modules/Profile/notifications_settings_screen.dart';
+import '../Modules/Profile/security_settings_screen.dart';
+import '../Modules/Profile/help_support_screen.dart';
+import '../Modules/Profile/about_app_screen.dart';
+import '../Modules/Favorites/favorites_screen.dart';
+import '../Modules/Admin/admin_crafts_management_screen.dart';
 
 BuildContext? get currentContext_ =>
     GoRouterConfig.router.routerDelegate.navigatorKey.currentContext;
@@ -73,7 +82,16 @@ class GoRouterConfig {
           );
         },
       ),
-
+      GoRoute(
+        path: '/edit-artisan-profile/:artisanId',
+        pageBuilder: (_, GoRouterState state) {
+          final artisanId = state.pathParameters['artisanId']!;
+          return getCustomTransitionPage(
+            state: state,
+            child: EditArtisanProfileScreen(artisanId: artisanId),
+          );
+        },
+      ),
       GoRoute(
         path: '/add-review/:artisanId',
         pageBuilder: (_, GoRouterState state) {
@@ -82,6 +100,20 @@ class GoRouterConfig {
           return getCustomTransitionPage(
             state: state,
             child: AddReviewScreen(
+              artisanId: artisanId,
+              artisanName: artisanName,
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/reviews/:artisanId',
+        pageBuilder: (_, GoRouterState state) {
+          final artisanId = state.pathParameters['artisanId']!;
+          final artisanName = state.queryParameters['name'] ?? 'الحرفي';
+          return getCustomTransitionPage(
+            state: state,
+            child: ReviewsListScreen(
               artisanId: artisanId,
               artisanName: artisanName,
             ),
@@ -118,9 +150,10 @@ class GoRouterConfig {
       GoRoute(
         path: '/register',
         pageBuilder: (_, GoRouterState state) {
+          final isArtisan = state.queryParameters['artisan'] == 'true';
           return getCustomTransitionPage(
             state: state,
-            child: const RegisterScreen(),
+            child: RegisterScreen(isArtisanRegistration: isArtisan),
           );
         },
       ),
@@ -160,7 +193,99 @@ class GoRouterConfig {
           );
         },
       ),
-
+      GoRoute(
+        path: '/fault-report',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const FaultReportScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/problem-report-stepper',
+        pageBuilder: (_, GoRouterState state) {
+          final reportId = state.queryParameters['reportId'];
+          return getCustomTransitionPage(
+            state: state,
+            child: ProblemReportStepperScreen(reportId: reportId),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/fault-report-details/:reportId',
+        pageBuilder: (_, GoRouterState state) {
+          final reportId = state.pathParameters['reportId']!;
+          return getCustomTransitionPage(
+            state: state,
+            child: FaultReportDetailsScreen(reportId: reportId),
+          );
+        },
+      ),
+      // Profile Routes
+      GoRoute(
+        path: '/edit-profile',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const EditProfileScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/notifications-settings',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const NotificationsSettingsScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/security-settings',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const SecuritySettingsScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/help-support',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const HelpSupportScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/about-app',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const AboutAppScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/favorites',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const FavoritesScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/admin/crafts',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const AdminCraftsManagementScreen(),
+          );
+        },
+      ),
     ],
     redirect: (BuildContext context, GoRouterState state) {
       return null;
@@ -182,8 +307,3 @@ class GoRouterConfig {
     );
   }
 }
-
-
-
-
-

@@ -1,15 +1,21 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
+import '../../core/Language/app_languages.dart';
 import '../../providers/simple_auth_provider.dart';
+import '../../services/craft_service.dart';
 import '../../Widgets/custom_button_widget.dart';
 import '../../Widgets/custom_textfield_widget.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final bool isArtisanRegistration;
+  
+  const RegisterScreen({super.key, this.isArtisanRegistration = false});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -26,11 +32,18 @@ class _RegisterScreenState extends State<RegisterScreen>
   
   // متغيرات جديدة للحرفي
   final _descriptionController = TextEditingController();
-  String _selectedUserType = 'user'; // 'user' أو 'artisan'
   String _selectedCraftType = 'carpenter';
   int _yearsOfExperience = 1;
   String? _profileImagePath;
   List<String> _galleryImagePaths = [];
+  
+  // متغيرات الموقع
+  double? _latitude;
+  double? _longitude;
+  bool _isLocationLoading = false;
+  
+  // تحديد نوع التسجيل
+  bool get _isArtisanMode => widget.isArtisanRegistration;
   
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -40,7 +53,10 @@ class _RegisterScreenState extends State<RegisterScreen>
   bool _obscureConfirmPassword = true;
   bool _agreeToTerms = false;
 
-  final List<String> _craftTypes = AppConstants.defaultCraftTypes;
+  // أنواع الحرف - يتم تحميلها من Firebase
+  final CraftService _craftService = CraftService();
+  List<Map<String, String>> _craftTypes = [];
+  bool _isLoadingCrafts = true;
 
   @override
   void initState() {
@@ -67,6 +83,45 @@ class _RegisterScreenState extends State<RegisterScreen>
     ));
     
     _animationController.forward();
+    _loadCrafts();
+  }
+
+  /// تحميل أنواع الحرف من Firebase
+  Future<void> _loadCrafts() async {
+    setState(() {
+      _isLoadingCrafts = true;
+    });
+
+    try {
+      final languageProvider = Provider.of<AppLanguage>(context, listen: false);
+      final languageCode = languageProvider.appLang.name;
+      
+      final crafts = await _craftService.getCraftsAsMap(languageCode);
+      
+      if (mounted) {
+        setState(() {
+          _craftTypes = crafts;
+          _isLoadingCrafts = false;
+        });
+      }
+    } catch (e) {
+      print('خطأ في تحميل الحرف: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCrafts = false;
+          // استخدام القيم الافتراضية في حالة الخطأ
+          final languageProvider = Provider.of<AppLanguage>(context, listen: false);
+          final languageCode = languageProvider.appLang.name;
+          _craftService.getCraftsAsMap(languageCode).then((crafts) {
+            if (mounted) {
+              setState(() {
+                _craftTypes = crafts;
+              });
+            }
+          });
+        });
+      }
+    }
   }
 
   @override
@@ -131,11 +186,34 @@ class _RegisterScreenState extends State<RegisterScreen>
               ),
             ),
             const Spacer(),
+            // زر تسجيل الحرفي - يظهر فقط في وضع التسجيل العادي
+            if (!_isArtisanMode)
+              TextButton.icon(
+                onPressed: () {
+                  context.push('/register?artisan=true');
+                },
+                icon: Icon(
+                  Icons.handyman_rounded,
+                  size: 20.w,
+                ),
+                label: Text(
+                  AppLocalizations.of(context)?.translate('register_as_artisan') ?? 'تسجيل حرفي',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                ),
+              ),
           ],
         ),
         SizedBox(height: 20.h),
         Text(
-          AppLocalizations.of(context)?.translate('create_account') ?? 'إنشاء حساب جديد',
+          _isArtisanMode
+              ? (AppLocalizations.of(context)?.translate('register_as_artisan') ?? 'تسجيل كحرفي')
+              : (AppLocalizations.of(context)?.translate('create_account') ?? 'إنشاء حساب جديد'),
           style: TextStyle(
             fontSize: 28.sp,
             fontWeight: FontWeight.bold,
@@ -144,7 +222,9 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
         SizedBox(height: 8.h),
         Text(
-          AppLocalizations.of(context)?.translate('register_subtitle') ?? 'انضم إلينا واستمتع بخدماتنا',
+          _isArtisanMode
+              ? (AppLocalizations.of(context)?.translate('register_artisan_subtitle') ?? 'سجل حسابك كحرفي وابدأ في تقديم خدماتك')
+              : (AppLocalizations.of(context)?.translate('register_subtitle') ?? 'انضم إلينا واستمتع بخدماتنا'),
           style: TextStyle(
             fontSize: 16.sp,
             color: Theme.of(context).colorScheme.outline,
@@ -270,90 +350,11 @@ class _RegisterScreenState extends State<RegisterScreen>
               return null;
             },
           ),
-          SizedBox(height: AppConstants.padding),
-          _buildUserTypeSelector(),
-          if (_selectedUserType == 'artisan') ...[
-            SizedBox(height: AppConstants.padding),
-            _buildArtisanFields(),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildUserTypeSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          AppLocalizations.of(context)?.translate('user_type') ?? 'نوع المستخدم',
-          style: TextStyle(
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-        SizedBox(height: 8.h),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () {
-                  setState(() {
-                    _selectedUserType = 'user';
-                  });
-                },
-                style: OutlinedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(vertical: 12.h),
-                  foregroundColor: _selectedUserType == 'user' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
-                  side: BorderSide(
-                    color: _selectedUserType == 'user' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-                  ),
-                ),
-                child: Text(
-                  AppLocalizations.of(context)?.translate('user') ?? 'مستخدم',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: 10.w),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () {
-                  setState(() {
-                    _selectedUserType = 'artisan';
-                  });
-                },
-                style: OutlinedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(vertical: 12.h),
-                  foregroundColor: _selectedUserType == 'artisan' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
-                  side: BorderSide(
-                    color: _selectedUserType == 'artisan' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-                  ),
-                ),
-                child: Text(
-                  AppLocalizations.of(context)?.translate('artisan') ?? 'حرفي',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 
   Widget _buildArtisanFields() {
     return Column(
@@ -377,14 +378,14 @@ class _RegisterScreenState extends State<RegisterScreen>
               borderRadius: BorderRadius.circular(AppConstants.borderRadius),
             ),
           ),
-          items: _craftTypes.map((craft) {
-            return DropdownMenuItem(
-              value: craft,
-              child: Text(
-                AppLocalizations.of(context)?.translate(craft) ?? craft,
-              ),
-            );
-          }).toList(),
+          items: _isLoadingCrafts
+              ? [const DropdownMenuItem(value: null, child: Center(child: CircularProgressIndicator()))]
+              : _craftTypes.map((craft) {
+                  return DropdownMenuItem(
+                    value: craft['value'],
+                    child: Text(craft['label'] ?? craft['value'] ?? ''),
+                  );
+                }).toList(),
           onChanged: (value) {
             setState(() {
               _selectedCraftType = value ?? 'carpenter';
@@ -449,6 +450,108 @@ class _RegisterScreenState extends State<RegisterScreen>
             }
             return null;
           },
+        ),
+        SizedBox(height: 15.h),
+        _buildLocationSection(),
+      ],
+    );
+  }
+
+  Widget _buildLocationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          AppLocalizations.of(context)?.translate('location') ?? 'الموقع',
+          style: TextStyle(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        SizedBox(height: 8.h),
+        Container(
+          padding: EdgeInsets.all(12.w),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _latitude != null && _longitude != null
+                  ? Colors.green
+                  : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+            ),
+            borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _latitude != null && _longitude != null
+                    ? Icons.location_on
+                    : Icons.location_off,
+                color: _latitude != null && _longitude != null
+                    ? Colors.green
+                    : Theme.of(context).colorScheme.outline,
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _latitude != null && _longitude != null
+                          ? AppLocalizations.of(context)?.translate('location_detected') ?? 
+                            'تم تحديد الموقع بنجاح'
+                          : AppLocalizations.of(context)?.translate('location_not_detected') ?? 
+                            'لم يتم تحديد الموقع',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: _latitude != null && _longitude != null
+                            ? Colors.green
+                            : Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                    if (_latitude != null && _longitude != null)
+                      Text(
+                        '${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (_isLocationLoading)
+                SizedBox(
+                  width: 20.w,
+                  height: 20.w,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                )
+              else
+                IconButton(
+                  onPressed: _getCurrentLocation,
+                  icon: Icon(
+                    Icons.my_location,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  tooltip: AppLocalizations.of(context)?.translate('get_location') ?? 'الحصول على الموقع',
+                ),
+            ],
+          ),
+        ),
+        SizedBox(height: 8.h),
+        Text(
+          AppLocalizations.of(context)?.translate('location_required_note') ?? 
+          'يجب تفعيل GPS للحصول على موقعك بدقة',
+          style: TextStyle(
+            fontSize: 12.sp,
+            color: Theme.of(context).colorScheme.outline,
+            fontStyle: FontStyle.italic,
+          ),
         ),
       ],
     );
@@ -564,12 +667,6 @@ class _RegisterScreenState extends State<RegisterScreen>
           text: AppLocalizations.of(context)?.translate('continue_with_google') ?? 'المتابعة مع Google',
           onPressed: () => _handleGoogleRegister(),
         ),
-        SizedBox(height: AppConstants.smallPadding),
-        _buildSocialButton(
-          icon: Icons.phone_android_rounded,
-          text: AppLocalizations.of(context)?.translate('continue_with_phone') ?? 'المتابعة برقم الهاتف',
-          onPressed: () => _handlePhoneRegister(),
-        ),
       ],
     );
   }
@@ -633,75 +730,350 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _isLocationLoading = true;
+    });
+
+    try {
+      // التحقق من تفعيل خدمة الموقع
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        try {
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context)?.translate('location_service_disabled') ?? 
+                'خدمة الموقع غير مفعلة. يرجى تفعيل GPS من الإعدادات',
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: AppLocalizations.of(context)?.translate('open_settings') ?? 'فتح الإعدادات',
+                textColor: Colors.white,
+                onPressed: () async {
+                  await Geolocator.openLocationSettings();
+                },
+              ),
+            ),
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('Could not show snackbar: $e');
+          }
+        }
+        setState(() {
+          _isLocationLoading = false;
+        });
+        return;
+      }
+
+      // التحقق من الصلاحيات
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (!mounted) return;
+          try {
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
+            scaffoldMessenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context)?.translate('location_permission_denied') ?? 
+                  'تم رفض إذن الموقع. يرجى السماح بالوصول للموقع',
+                ),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          } catch (e) {
+            if (kDebugMode) {
+              print('Could not show snackbar: $e');
+            }
+          }
+          setState(() {
+            _isLocationLoading = false;
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        try {
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context)?.translate('location_permission_denied_forever') ?? 
+                'إذن الموقع مرفوض نهائياً. يرجى تفعيله من إعدادات التطبيق',
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: AppLocalizations.of(context)?.translate('open_settings') ?? 'فتح الإعدادات',
+                textColor: Colors.white,
+                onPressed: () async {
+                  await Geolocator.openAppSettings();
+                },
+              ),
+            ),
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('Could not show snackbar: $e');
+          }
+        }
+        setState(() {
+          _isLocationLoading = false;
+        });
+        return;
+      }
+
+      // الحصول على الموقع
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _isLocationLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLocationLoading = false;
+      });
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)?.translate('location_error') ?? 
+              'فشل في الحصول على الموقع: ${e.toString()}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } catch (err) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $err');
+        }
+      }
+    }
+  }
+
   Future<void> _handleRegister(SimpleAuthProvider authProvider) async {
     if (!_formKey.currentState!.validate()) return;
     
     if (!_agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context)?.translate('must_agree_terms') ?? 'يجب الموافقة على الشروط والأحكام',
+      if (!mounted) return;
+      try {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)?.translate('must_agree_terms') ?? 'يجب الموافقة على الشروط والأحكام',
+            ),
+            backgroundColor: Colors.orange,
           ),
-          backgroundColor: Colors.orange,
-        ),
-      );
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('Could not show snackbar: $e');
+        }
+      }
       return;
     }
 
+    // إذا كان تسجيل حرفي، استخدم التسجيل المبسط
+    if (_isArtisanMode) {
+      // التحقق من صحة البيانات الأساسية
+      if (!_formKey.currentState!.validate()) return;
+      
+      if (!_agreeToTerms) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)?.translate('must_agree_terms') ?? 'يجب الموافقة على الشروط والأحكام',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // تسجيل الحساب بالبيانات الأساسية فقط (بدون موقع أو بيانات إضافية)
+      final success = await authProvider.registerArtisanBasic(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      if (success) {
+        try {
+          if (!mounted) return;
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context)?.translate('account_created_successfully') ?? 'تم إنشاء الحساب بنجاح',
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          // الانتظار قليلاً ثم التوجيه إلى صفحة تعديل الملف الشخصي
+          await Future.delayed(const Duration(milliseconds: 500));
+          
+          // إعادة تحميل بيانات المستخدم للتأكد من الحصول على artisanId
+          await authProvider.reloadUser();
+          
+          // الحصول على معرف الحرفي من المستخدم الحالي
+          final currentUser = authProvider.currentUser;
+          if (currentUser != null && currentUser.artisanId != null && currentUser.artisanId!.isNotEmpty) {
+            context.go('/edit-artisan-profile/${currentUser.artisanId}');
+          } else {
+            // إذا لم يكن artisanId متاحاً بعد، انتظر قليلاً ثم حاول مرة أخرى
+            await Future.delayed(const Duration(milliseconds: 1000));
+            await authProvider.reloadUser();
+            final user = authProvider.currentUser;
+            if (user != null && user.artisanId != null && user.artisanId!.isNotEmpty) {
+              context.go('/edit-artisan-profile/${user.artisanId}');
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(AppLocalizations.of(context)?.translate('account_created_complete_profile') ?? 'تم إنشاء الحساب. يرجى إكمال بيانات الملف الشخصي من الصفحة الرئيسية'),
+                    backgroundColor: Colors.orange,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+                context.go('/home');
+              }
+            }
+          }
+        } catch (e) {
+          if (mounted) {
+            context.go('/home');
+          }
+        }
+      } else {
+        try {
+          if (!mounted) return;
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                authProvider.errorMessage ?? 
+                (AppLocalizations.of(context)?.translate('registration_failed') ?? 'فشل في إنشاء الحساب'),
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('Could not show snackbar: $e');
+          }
+        }
+      }
+      return;
+    }
+
+    // تسجيل حساب عادي (مستخدم)
     final success = await authProvider.register(
       email: _emailController.text.trim(),
       password: _passwordController.text,
       name: _nameController.text.trim(),
       phone: _phoneController.text.trim(),
-      userType: _selectedUserType,
-      craftType: _selectedCraftType,
-      description: _descriptionController.text.trim(),
-      yearsOfExperience: _yearsOfExperience,
+      userType: 'user',
+      craftType: null,
+      description: null,
+      yearsOfExperience: null,
+      latitude: null,
+      longitude: null,
     );
 
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context)?.translate('account_created_successfully') ?? 'تم إنشاء الحساب بنجاح',
+    if (!mounted) return;
+
+    if (success) {
+      // Get fresh references after mounted check and wrap in try-catch for safety
+      try {
+        if (!mounted) return;
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)?.translate('account_created_successfully') ?? 'تم إنشاء الحساب بنجاح',
+            ),
+            backgroundColor: Colors.green,
           ),
-          backgroundColor: Colors.green,
-        ),
-      );
-      context.go('/home');
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            authProvider.errorMessage ?? 
-            (AppLocalizations.of(context)?.translate('registration_failed') ?? 'فشل في إنشاء الحساب'),
+        );
+        context.go('/home');
+      } catch (e) {
+        // Widget was deactivated, just navigate
+        if (mounted) context.go('/home');
+      }
+    } else {
+      // Get fresh references after mounted check and wrap in try-catch for safety
+      try {
+        if (!mounted) return;
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              authProvider.errorMessage ?? 
+              (AppLocalizations.of(context)?.translate('registration_failed') ?? 'فشل في إنشاء الحساب'),
+            ),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      } catch (e) {
+        // Widget was deactivated, ignore the error
+        if (kDebugMode) {
+          print('Could not show snackbar: $e');
+        }
+      }
     }
   }
 
   Future<void> _handleGoogleRegister() async {
     final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+
     final success = await authProvider.loginWithGoogle();
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
       context.go('/home');
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            authProvider.errorMessage ?? 
-            (AppLocalizations.of(context)?.translate('google_register_failed') ?? 'فشل في التسجيل مع Google'),
+    } else {
+      // Get fresh references after mounted check and wrap in try-catch for safety
+      try {
+        if (!mounted) return;
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              authProvider.errorMessage ?? 
+              (AppLocalizations.of(context)?.translate('google_register_failed') ?? 'فشل في التسجيل مع Google'),
+            ),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      } catch (e) {
+        // Widget was deactivated, ignore the error
+        if (kDebugMode) {
+          print('Could not show snackbar: $e');
+        }
+      }
     }
   }
 
-  Future<void> _handlePhoneRegister() async {
-    context.push('/phone-login');
-  }
 } 

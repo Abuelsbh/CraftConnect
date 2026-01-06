@@ -1,83 +1,95 @@
 import 'package:equatable/equatable.dart';
 
+/// نموذج الحرفة مع دعم الترجمة
 class CraftModel extends Equatable {
   final String id;
-  final String name;
-  final String nameKey;
-  final String iconPath;
-  final String description;
-  final int artisanCount;
-  final String category;
-  final double averageRating;
+  final String value; // القيمة المستخدمة في الكود (مثل: 'carpenter', 'electrical')
+  final Map<String, String> translations; // الترجمات: {'ar': 'عطل نجارة', 'en': 'Carpentry Problem'}
+  final int order; // ترتيب العرض
+  final bool isActive; // هل الحرفة نشطة
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   const CraftModel({
     required this.id,
-    required this.name,
-    required this.nameKey,
-    required this.iconPath,
-    required this.description,
-    required this.artisanCount,
-    required this.category,
-    required this.averageRating,
+    required this.value,
+    required this.translations,
+    this.order = 0,
+    this.isActive = true,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
-  factory CraftModel.fromJson(Map<String, dynamic> json) {
+  /// الحصول على الترجمة حسب اللغة
+  String getDisplayName(String languageCode) {
+    return translations[languageCode] ?? translations['ar'] ?? value;
+  }
+
+  /// الحصول على الترجمة العربية
+  String get arabicName => getDisplayName('ar');
+
+  /// الحصول على الترجمة الإنجليزية
+  String get englishName => getDisplayName('en');
+
+  factory CraftModel.fromJson(Map<String, dynamic> json, String id) {
     return CraftModel(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
-      nameKey: json['nameKey'] ?? json['name'] ?? '',
-      iconPath: json['iconPath'] ?? '',
-      description: json['description'] ?? '',
-      artisanCount: json['artisanCount'] ?? 0,
-      category: json['category'] ?? '',
-      averageRating: (json['averageRating'] ?? 0.0).toDouble(),
+      id: id,
+      value: json['value'] ?? '',
+      translations: Map<String, String>.from(json['translations'] ?? {}),
+      order: json['order'] ?? 0,
+      isActive: json['isActive'] ?? true,
+      createdAt: json['createdAt'] != null
+          ? (json['createdAt'] is DateTime
+              ? json['createdAt'] as DateTime
+              : DateTime.parse(json['createdAt'].toString()))
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? (json['updatedAt'] is DateTime
+              ? json['updatedAt'] as DateTime
+              : DateTime.parse(json['updatedAt'].toString()))
+          : DateTime.now(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'name': name,
-      'nameKey': nameKey,
-      'iconPath': iconPath,
-      'description': description,
-      'artisanCount': artisanCount,
-      'category': category,
-      'averageRating': averageRating,
+      'value': value,
+      'translations': translations,
+      'order': order,
+      'isActive': isActive,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
   CraftModel copyWith({
     String? id,
-    String? name,
-    String? nameKey,
-    String? iconPath,
-    String? description,
-    int? artisanCount,
-    String? category,
-    double? averageRating,
+    String? value,
+    Map<String, String>? translations,
+    int? order,
+    bool? isActive,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return CraftModel(
       id: id ?? this.id,
-      name: name ?? this.name,
-      nameKey: nameKey ?? this.nameKey,
-      iconPath: iconPath ?? this.iconPath,
-      description: description ?? this.description,
-      artisanCount: artisanCount ?? this.artisanCount,
-      category: category ?? this.category,
-      averageRating: averageRating ?? this.averageRating,
+      value: value ?? this.value,
+      translations: translations ?? this.translations,
+      order: order ?? this.order,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
   @override
   List<Object?> get props => [
         id,
-        name,
-        nameKey,
-        iconPath,
-        description,
-        artisanCount,
-        category,
-        averageRating,
+        value,
+        translations,
+        order,
+        isActive,
+        createdAt,
+        updatedAt,
       ];
-} 
+}
