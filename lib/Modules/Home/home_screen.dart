@@ -483,8 +483,9 @@ class _HomeScreenState extends State<HomeScreen>
       body: CustomScrollView(
         physics: PerformanceHelper.optimizedScrollPhysics,
         slivers: [
-          _buildSliverAppBar(),
+          //_buildSliverAppBar(),
           //_buildSliverCategoryFilter(),
+          SliverToBoxAdapter(child: SizedBox(height: 20.h,)),
           _buildSliverSearchBar(),
           _buildSliverCraftsList(),
         ],
@@ -524,7 +525,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildSliverAppBar() {
     return SliverAppBar(
-      expandedHeight: 120.h,
+      expandedHeight: 80.h,
       floating: false,
       pinned: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -543,112 +544,22 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           child: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      TweenAnimationBuilder<double>(
-                        duration: const Duration(milliseconds: 800),
-                        tween: Tween(begin: 0.0, end: 1.0),
-                        builder: (context, value, child) {
-                          return Transform.scale(
-                            scale: 0.5 + (0.5 * value),
-                            child: Container(
-                              width: 50.w,
-                              height: 50.w,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Theme.of(context).colorScheme.primary,
-                                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(15.r),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.handyman_rounded,
-                                color: Colors.white,
-                                size: 25.w,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      SizedBox(width: 15.w),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            TweenAnimationBuilder<Offset>(
-                              duration: const Duration(milliseconds: 600),
-                              tween: Tween(begin: const Offset(50, 0), end: Offset.zero),
-                              builder: (context, value, child) {
-                                return Transform.translate(
-                                  offset: value,
-                                  child: Text(
-                                    AppLocalizations.of(context)?.translate('welcome_greeting') ?? 'مرحباً بك',
-                                    style: TextStyle(
-                                      fontSize: 16.sp,
-                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            SizedBox(height: 2.h),
-                            TweenAnimationBuilder<Offset>(
-                              duration: const Duration(milliseconds: 800),
-                              tween: Tween(begin: const Offset(80, 0), end: Offset.zero),
-                              builder: (context, value, child) {
-                                return Transform.translate(
-                                  offset: value,
-                                  child: Text(
-                                    AppLocalizations.of(context)?.translate('find_suitable_artisan') ?? 'ابحث عن الحرفي المناسب',
-                                    style: TextStyle(
-                                      fontSize: 20.sp,
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context).colorScheme.onSurface,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      // زر المفضلة
-                      Consumer<SimpleAuthProvider>(
-                        builder: (context, authProvider, _) {
-                          if (!authProvider.isLoggedIn) {
-                            return const SizedBox.shrink();
-                          }
-                          return IconButton(
-                            onPressed: () {
-                              context.push('/favorites');
-                            },
-                            icon: Icon(
-                              Icons.favorite_rounded,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 24.w,
-                            ),
-                            tooltip: 'المفضلة',
-                          );
-                        },
-                      ),
-                    ],
+            child: Center(
+              child: Container(
+                width: 50.w,
+                height: 50.w,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12.r),
+                  child: Image.asset(
+                    Assets.iconsLogo,
+                    width: 50.w,
+                    height: 50.w,
+                    fit: BoxFit.cover,
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -667,63 +578,109 @@ class _HomeScreenState extends State<HomeScreen>
             offset: Offset(0, 30 * (1 - value)),
             child: Opacity(
               opacity: value,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    // التنقل إلى صفحة البحث
-                    context.push('/search');
-                  },
-                  borderRadius: BorderRadius.circular(16.r),
-                  child: Container(
-                    margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(16.r),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
+                child: Row(
+                  children: [
+                    Image.asset(
+                      Assets.iconsLogo,
+                      width: 50.w,
+                      height: 50.w,
+                      fit: BoxFit.cover,
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.search_rounded,
-                          color: Theme.of(context).colorScheme.outline,
-                          size: 20.w,
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: Text(
-                            AppLocalizations.of(context)?.translate('search_artisan_or_service') ?? 'ابحث عن حرفي أو خدمة...',
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              color: Theme.of(context).colorScheme.outline,
+                    SizedBox(width: 8.w,),
+                    Expanded(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            // التنقل إلى صفحة البحث
+                            context.push('/search');
+                          },
+                          borderRadius: BorderRadius.circular(16.r),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface,
+                              borderRadius: BorderRadius.circular(16.r),
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.search_rounded,
+                                  color: Theme.of(context).colorScheme.outline,
+                                  size: 20.w,
+                                ),
+                                SizedBox(width: 12.w),
+                                Expanded(
+                                  child: Text(
+                                    AppLocalizations.of(context)?.translate('search_artisan_or_service') ?? 'ابحث عن حرفي أو خدمة...',
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      color: Theme.of(context).colorScheme.outline,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: EdgeInsets.all(6.w),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8.r),
+                                  ),
+                                  child: Icon(
+                                    Icons.tune_rounded,
+                                    color: Theme.of(context).colorScheme.primary,
+                                    size: 16.w,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        Container(
-                          padding: EdgeInsets.all(6.w),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                          child: Icon(
-                            Icons.tune_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 16.w,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    Consumer<SimpleAuthProvider>(
+                      builder: (context, authProvider, _) {
+                        if (!authProvider.isLoggedIn) {
+                          return const SizedBox.shrink();
+                        }
+                        return Container(
+                          margin: EdgeInsets.only(left: 0, right: 12.w),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                context.push('/favorites');
+                              },
+                              borderRadius: BorderRadius.circular(12.r),
+                              child: Container(
+                                padding: EdgeInsets.all(8.w),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12.r),
+                                ),
+                                child: Icon(
+                                  Icons.favorite_rounded,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  size: 24.w,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),

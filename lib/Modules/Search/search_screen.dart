@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../Models/artisan_model.dart';
+import '../../Models/craft_model.dart';
 import '../../providers/app_provider.dart';
+import '../../services/craft_service.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -21,6 +23,7 @@ class _SearchScreenState extends State<SearchScreen> {
   double _selectedRadius = 10.0;
   double _minRating = 0.0;
   bool _showFilters = false;
+  List<CraftModel> _availableCrafts = [];
 
   @override
   void initState() {
@@ -31,7 +34,54 @@ class _SearchScreenState extends State<SearchScreen> {
       if (appProvider.artisans.isEmpty) {
         appProvider.loadInitialData();
       }
+      // تحميل الحرف من Firebase
+      _loadCrafts();
     });
+  }
+
+  Future<void> _loadCrafts() async {
+    try {
+      final craftService = CraftService();
+      final crafts = await craftService.getAllCrafts(activeOnly: true);
+      if (mounted) {
+        setState(() {
+          _availableCrafts = crafts;
+        });
+      }
+    } catch (e) {
+      print('❌ خطأ في تحميل الحرف في صفحة البحث: $e');
+      if (mounted) {
+        setState(() {
+          _availableCrafts = [];
+        });
+      }
+    }
+  }
+
+  String _getCraftDisplayName(String craftType) {
+    // البحث عن الحرفة في القائمة المحملة من Firebase
+    final craft = _availableCrafts.firstWhere(
+      (c) => c.value == craftType,
+      orElse: () => CraftModel(
+        id: craftType,
+        value: craftType,
+        translations: {},
+        order: 0,
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+    
+    final languageCode = Localizations.localeOf(context).languageCode;
+    final displayName = craft.getDisplayName(languageCode);
+    
+    // إذا لم تكن هناك ترجمة، استخدم AppLocalizations كبديل
+    if (displayName == craftType && craft.translations.isEmpty) {
+      return AppLocalizations.of(context)?.translate(craftType) ?? craftType;
+    }
+    
+    return displayName;
   }
 
   @override
@@ -239,7 +289,8 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildCraftTypeFilter(AppProvider appProvider) {
-    final craftTypes = ['all', 'carpenter', 'electrician', 'plumber', 'painter', 'mechanic', 'hvac', 'satellite', 'internet', 'tiler', 'locksmith'];
+    // استخدام الحرف المحملة من Firebase
+    final languageCode = Localizations.localeOf(context).languageCode;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,29 +307,49 @@ class _SearchScreenState extends State<SearchScreen> {
         Wrap(
           spacing: 8.w,
           runSpacing: 8.h,
-          children: craftTypes.map((craftType) {
-            final isSelected = _selectedCraftType == craftType;
-            return FilterChip(
+          children: [
+            // خيار "الكل"
+            FilterChip(
               label: Text(
-                craftType == 'all' 
-                    ? 'الكل'
-                    : AppLocalizations.of(context)?.translate(craftType) ?? craftType,
+                'الكل',
                 style: TextStyle(
                   fontSize: 12.sp,
-                  color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+                  color: _selectedCraftType == 'all' ? Colors.white : Theme.of(context).colorScheme.primary,
                 ),
               ),
-              selected: isSelected,
+              selected: _selectedCraftType == 'all',
               onSelected: (selected) {
                 setState(() {
-                  _selectedCraftType = craftType;
+                  _selectedCraftType = 'all';
                 });
               },
               backgroundColor: Colors.white,
               selectedColor: Theme.of(context).colorScheme.primary,
               checkmarkColor: Colors.white,
-            );
-          }).toList(),
+            ),
+            // الحرف من Firebase
+            ..._availableCrafts.map((craft) {
+              final isSelected = _selectedCraftType == craft.value;
+              return FilterChip(
+                label: Text(
+                  craft.getDisplayName(languageCode),
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                selected: isSelected,
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedCraftType = craft.value;
+                  });
+                },
+                backgroundColor: Colors.white,
+                selectedColor: Theme.of(context).colorScheme.primary,
+                checkmarkColor: Colors.white,
+              );
+            }).toList(),
+          ],
         ),
       ],
     );
@@ -501,7 +572,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     SizedBox(height: 4.h),
                     
                     Text(
-                      AppLocalizations.of(context)?.translate(artisan.craftType) ?? artisan.craftType,
+                      _getCraftDisplayName(artisan.craftType),
                       style: TextStyle(
                         fontSize: 14.sp,
                         color: Theme.of(context).colorScheme.primary,

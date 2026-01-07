@@ -189,3 +189,4 @@ MenuItem(
 - `lib/Models/craft_model.dart` - نموذج الحرفة
 - `FIREBASE_CRAFTS_SETUP.md` - دليل إعداد Firebase
 
+

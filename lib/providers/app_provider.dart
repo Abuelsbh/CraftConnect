@@ -4,9 +4,11 @@ import '../Models/artisan_model.dart';
 import '../Models/craft_model.dart';
 import '../Models/user_model.dart';
 import '../services/artisan_service.dart';
+import '../services/craft_service.dart';
 
 class AppProvider with ChangeNotifier {
   final ArtisanService _artisanService = ArtisanService();
+  final CraftService _craftService = CraftService();
   // حالة التطبيق العامة
   bool _isLoading = false;
   String? _errorMessage;
@@ -203,14 +205,16 @@ class AppProvider with ChangeNotifier {
   Future<void> _loadCrafts() async {
     // تحميل الحرف من Firebase
     try {
-      // يمكن إضافة خدمة للحرف هنا
-      // final craftService = CraftService();
-      // _crafts = await craftService.getAllCrafts();
-      
-      // في الوقت الحالي، سنترك القائمة فارغة
-      _crafts = [];
+      _crafts = await _craftService.getAllCrafts(activeOnly: true);
+      if (kDebugMode) {
+        print('✅ تم تحميل ${_crafts.length} حرفة من Firebase في AppProvider');
+      }
     } catch (e) {
       _errorMessage = 'فشل في تحميل الحرف: $e';
+      if (kDebugMode) {
+        print('❌ خطأ في تحميل الحرف: $e');
+      }
+      _crafts = [];
     }
   }
 
