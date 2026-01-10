@@ -1,9 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
 import '../../../Models/chat_model.dart';
 import '../../../core/Language/locales.dart';
 
@@ -260,13 +265,62 @@ class MessageBubble extends StatelessWidget {
     }
 
     try {
-      print('📁 فتح الملف: ${message.fileUrl}');
+      print('📁 بدء فتح الملف: ${message.fileUrl}');
       
-      final uri = Uri.parse(message.fileUrl!);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      // عرض مؤشر التحميل
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text('جاري تحميل الملف...'),
+                ),
+              ],
+            ),
+            duration: Duration(seconds: 30),
+          ),
+        );
+      }
+
+      // تحميل الملف من Firebase Storage
+      final fileUrl = message.fileUrl!;
+      final fileName = message.fileName ?? 'file_${DateTime.now().millisecondsSinceEpoch}';
+      
+      print('📥 تحميل الملف من: $fileUrl');
+      final response = await http.get(Uri.parse(fileUrl));
+      
+      if (response.statusCode != 200) {
+        throw Exception('فشل في تحميل الملف: ${response.statusCode}');
+      }
+
+      // الحصول على مجلد التخزين المؤقت
+      final tempDir = await getTemporaryDirectory();
+      final fileExtension = path.extension(fileName);
+      final localFileName = '${DateTime.now().millisecondsSinceEpoch}$fileExtension';
+      final localFile = File(path.join(tempDir.path, localFileName));
+      
+      // حفظ الملف محلياً
+      await localFile.writeAsBytes(response.bodyBytes);
+      print('✅ تم حفظ الملف محلياً: ${localFile.path}');
+      
+      // فتح الملف باستخدام open_file
+      final result = await OpenFile.open(localFile.path);
+      
+      if (context.mounted) {
+        // إغلاق مؤشر التحميل
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         
-        if (context.mounted) {
+        if (result.type == ResultType.done) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('تم فتح الملف: ${message.fileName ?? "الملف"}'),
@@ -274,17 +328,26 @@ class MessageBubble extends StatelessWidget {
               duration: const Duration(seconds: 2),
             ),
           );
+        } else if (result.type == ResultType.noAppToOpen) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('لا يوجد تطبيق لفتح هذا النوع من الملفات'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else {
+          throw Exception('فشل في فتح الملف: ${result.message}');
         }
-      } else {
-        throw Exception('لا يمكن فتح رابط الملف');
       }
     } catch (e) {
       print('❌ خطأ في فتح الملف: $e');
       
       if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${AppLocalizations.of(context)?.translate('failed_to_open_file') ?? 'فشل في فتح الملف'}: $e'),
+            content: Text('${AppLocalizations.of(context)?.translate('failed_to_open_file') ?? 'فشل في فتح الملف'}: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),

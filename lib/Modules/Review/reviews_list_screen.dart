@@ -184,6 +184,7 @@ class _ReviewsListScreenState extends State<ReviewsListScreen> {
     final currentUser = authProvider.currentUser;
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Text(
           'التقييمات',
@@ -194,6 +195,7 @@ class _ReviewsListScreenState extends State<ReviewsListScreen> {
         ),
         centerTitle: true,
         elevation: 0,
+        backgroundColor: Colors.grey[100],
       ),
       body: Column(
         children: [

@@ -80,5 +80,10 @@
             <action android:name="android.intent.action.PICK" />
             <data android:mimeType="*/*" />
         </intent>
+        <!-- File opening queries for open_file package -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="*/*" />
+        </intent>
     </queries>
 </manifest>

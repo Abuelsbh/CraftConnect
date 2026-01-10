@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:template_2025/generated/assets.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../providers/simple_auth_provider.dart';
@@ -70,15 +72,14 @@ class _LoginScreenState extends State<LoginScreen>
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(AppConstants.padding),
+          padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 12.h),
           child: FadeTransition(
             opacity: _fadeAnimation,
             child: SlideTransition(
               position: _slideAnimation,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  SizedBox(height: 40.h),
                   _buildHeader(),
                   SizedBox(height: 40.h),
                   _buildLoginForm(),
@@ -103,21 +104,9 @@ class _LoginScreenState extends State<LoginScreen>
 
   Widget _buildHeader() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Row(
-          children: [
-            IconButton(
-              onPressed: () => context.pop(),
-              icon: Icon(
-                Icons.arrow_back_ios_rounded,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            const Spacer(),
-          ],
-        ),
-        SizedBox(height: 20.h),
         Text(
           AppLocalizations.of(context)?.translate('welcome_back') ?? 'مرحباً بعودتك',
           style: TextStyle(
@@ -126,13 +115,12 @@ class _LoginScreenState extends State<LoginScreen>
             color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
-        SizedBox(height: 8.h),
-        Text(
-          AppLocalizations.of(context)?.translate('login_subtitle') ?? 'سجل دخولك للمتابعة',
-          style: TextStyle(
-            fontSize: 16.sp,
-            color: Theme.of(context).colorScheme.outline,
-          ),
+        SizedBox(height: 18.h,),
+        Image.asset(
+          Assets.iconsLogo,
+          width: 70.w,
+          height: 70.w,
+          fit: BoxFit.cover,
         ),
       ],
     );
@@ -144,9 +132,10 @@ class _LoginScreenState extends State<LoginScreen>
       child: Column(
         children: [
           CustomTextFieldWidget(
+            borderRadiusValue: 10.r,
             controller: _emailController,
             hint: AppLocalizations.of(context)?.translate('enter_email') ?? 'أدخل بريدك الإلكتروني',
-            prefixIcon: Icon(Icons.email_outlined, color: Theme.of(context).colorScheme.outline),
+           // prefixIcon: Icon(Icons.email_outlined, color: Theme.of(context).colorScheme.outline),
             textInputType: TextInputType.emailAddress,
             validator: (value) {
               if (value?.isEmpty ?? true) {
@@ -160,9 +149,10 @@ class _LoginScreenState extends State<LoginScreen>
           ),
           SizedBox(height: AppConstants.padding),
           CustomTextFieldWidget(
+            borderRadiusValue: 10.r,
             controller: _passwordController,
             hint: AppLocalizations.of(context)?.translate('enter_password') ?? 'أدخل كلمة المرور',
-            prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).colorScheme.outline),
+            //prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).colorScheme.outline),
             obscure: _obscurePassword,
             suffixIcon: IconButton(
               onPressed: () {
@@ -243,6 +233,7 @@ class _LoginScreenState extends State<LoginScreen>
           width: double.infinity,
           height: 56.h,
           onTap: authProvider.isLoading ? () {} : () => _handleLogin(authProvider),
+          titleColor: Colors.white,
           titleWidget: authProvider.isLoading 
               ? SizedBox(
                   width: 20.w,

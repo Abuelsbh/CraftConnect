@@ -113,10 +113,10 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         // التحقق من وجود البيانات وإضافتها إذا لم تكن موجودة
        // await _checkAndAddSampleData();
-        
+
         final prefs = await SharedPreferences.getInstance();
         final isFirstTime = prefs.getBool(AppConstants.isFirstTimeKey) ?? true;
-        
+
         if (isFirstTime) {
           context.go('/onboarding');
         } else {
@@ -171,80 +171,16 @@ class _SplashScreenState extends State<SplashScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Animated Logo
-                  AnimatedBuilder(
-                    animation: _logoController,
-                    builder: (context, child) {
-                      return Transform.scale(
-                        scale: _logoScale.value,
-                        child: Transform.rotate(
-                          angle: _logoRotation.value * 0.1,
-                          child: Container(
-                            width: 120.w,
-                            height: 120.w,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(30.r),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.2),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(30.r),
-                              child: Image.asset(
-                                Assets.iconsLogo,
-                                width: 120.w,
-                                height: 120.w,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                  Image.asset(
+                    Assets.iconsLogo,
+                    width: 200.w,
+                    height: 200.w,
+                    fit: BoxFit.cover,
                   ),
                   
-                  SizedBox(height: 30.h),
-                  
-                  // Animated App Name
-                  AnimatedBuilder(
-                    animation: _textController,
-                    builder: (context, child) {
-                      return SlideTransition(
-                        position: _textSlide,
-                        child: FadeTransition(
-                          opacity: _textOpacity,
-                          child: Column(
-                            children: [
-                              Text(
-                                AppLocalizations.of(context)?.translate('app_name')??'',
-                                style: TextStyle(
-                                  fontSize: 32.sp,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              SizedBox(height: 8.h),
-                              Text(
-                                AppLocalizations.of(context)?.translate('welcome')??'',
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  color: Colors.black.withValues(alpha: 0.7),
-                                  fontWeight: FontWeight.w300,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  
-                  SizedBox(height: 60.h),
+                  SizedBox(height: 90.h),
+
+
                   
                   // Loading indicator
                   FadeTransition(
@@ -260,6 +196,8 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                   ),
+                  SizedBox(height: 10.h),
+                  Text('Loading...')
                 ],
               ),
             ),

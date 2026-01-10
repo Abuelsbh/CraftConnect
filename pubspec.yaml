@@ -85,6 +85,9 @@ dependencies:
   
   # URL handling
   url_launcher: ^6.2.2
+  
+  # File opening
+  open_file: ^3.5.0
 
   
   # App info
@@ -129,7 +132,7 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icons/logo.jpeg"
+  image_path: "assets/icons/icon.jpeg"
   min_sdk_android: 21
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icons/logo.jpeg"
+  adaptive_icon_foreground: "assets/icons/icon.jpeg"

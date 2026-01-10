@@ -31,8 +31,11 @@ class ArtisanProfileScreen extends StatefulWidget {
 
 class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
   bool _isLoading = true;
+  bool _isLoadingReviews = false;
   ArtisanModel? _artisan;
+  List<ReviewModel> _reviews = [];
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ReviewService _reviewService = ReviewService();
 
   @override
   void initState() {
@@ -54,9 +57,8 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
         final artisanData = artisanDoc.data()!;
         final artisan = ArtisanModel.fromJson(artisanData);
         
-        final reviewService = ReviewService();
-        final actualRating = await reviewService.getAverageRating(widget.artisanId);
-        final actualReviewCount = await reviewService.getReviewCount(widget.artisanId);
+        final actualRating = await _reviewService.getAverageRating(widget.artisanId);
+        final actualReviewCount = await _reviewService.getReviewCount(widget.artisanId);
         
         final updatedArtisan = artisan.copyWith(
           rating: actualRating,
@@ -67,6 +69,9 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
           _artisan = updatedArtisan;
           _isLoading = false;
         });
+        
+        // تحميل المراجعات
+        _loadReviews();
       } else {
         setState(() {
           _isLoading = false;
@@ -78,6 +83,25 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
         _isLoading = false;
       });
       _showErrorSnackBar('فشل في تحميل بيانات الحرفي: $e');
+    }
+  }
+
+  Future<void> _loadReviews() async {
+    setState(() {
+      _isLoadingReviews = true;
+    });
+
+    try {
+      final reviews = await _reviewService.getReviewsByArtisanId(widget.artisanId);
+      setState(() {
+        _reviews = reviews;
+        _isLoadingReviews = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingReviews = false;
+      });
+      print('فشل في تحميل المراجعات: $e');
     }
   }
 
@@ -134,7 +158,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: Colors.grey[100],
       body: _isLoading ? _buildLoadingState() : _buildContent(),
     );
   }
@@ -163,6 +187,7 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
                 _buildStatsSection(),
                 _buildServiceInfo(),
                 _buildPortfolioGallery(),
+                _buildReviewsSection(),
                 SizedBox(height: 100.h), // Space for bottom buttons
             ],
           ),
@@ -442,56 +467,272 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
     }
 
     return Container(
-      padding: EdgeInsets.all(16.w),
+      padding: EdgeInsets.symmetric(vertical: 16.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            AppLocalizations.of(context)?.translate('portfolio_gallery') ?? 'معرض الأعمال',
-            style: TextStyle(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.w),
+            child: Text(
+              AppLocalizations.of(context)?.translate('portfolio_gallery') ?? 'معرض الأعمال',
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ),
           SizedBox(height: 12.h),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 8.w,
-              mainAxisSpacing: 8.h,
-              childAspectRatio: 1.0,
-            ),
-            itemCount: _artisan!.galleryImages.length > 6 ? 6 : _artisan!.galleryImages.length,
-            itemBuilder: (context, index) {
-              return GestureDetector(
-                onTap: () => _showImageGallery(index),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8.r),
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  ),
-                  child: ClipRRect(
-      borderRadius: BorderRadius.circular(8.r),
-                    child: Stack(
-                      fit: StackFit.expand,
-          children: [
-                        _buildImageFromData(
-                          _artisan!.galleryImages[index],
-                          fit: BoxFit.cover,
-                        ),
-                      ],
+          SizedBox(
+            height: 150.h,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(horizontal: 16.w),
+              itemCount: _artisan!.galleryImages.length,
+              itemBuilder: (context, index) {
+                return GestureDetector(
+                  onTap: () => _showImageGallery(index),
+                  child: Container(
+                    width: 150.w,
+                    margin: EdgeInsets.only(right: 12.w),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12.r),
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12.r),
+                      child: _buildImageFromData(
+                        _artisan!.galleryImages[index],
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildReviewsSection() {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                AppLocalizations.of(context)?.translate('reviews') ?? 'التقييمات',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              if (_reviews.isNotEmpty)
+                TextButton(
+                  onPressed: () {
+                    context.push('/reviews/${widget.artisanId}?name=${Uri.encodeComponent(_artisan!.name)}');
+                  },
+                  child: Text(
+                    AppLocalizations.of(context)?.translate('view_all') ?? 'عرض الكل',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          if (_isLoadingReviews)
+            Center(
+              child: Padding(
+                padding: EdgeInsets.all(20.h),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_reviews.isEmpty)
+            Container(
+              padding: EdgeInsets.all(32.h),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.reviews_outlined,
+                      size: 48.w,
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                    SizedBox(height: 12.h),
+                    Text(
+                      AppLocalizations.of(context)?.translate('no_reviews') ?? 'لا توجد تقييمات بعد',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Column(
+              children: _reviews.take(3).map((review) {
+                return Padding(
+                  padding: EdgeInsets.only(bottom: 12.h),
+                  child: _buildReviewCard(review),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewCard(ReviewModel review) {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24.r,
+                backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                child: review.userProfileImage.isNotEmpty
+                    ? ClipOval(
+                        child: _buildImageFromData(
+                          review.userProfileImage,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    : Icon(
+                        Icons.person_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 24.w,
+                      ),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review.userName,
+                      style: TextStyle(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    SizedBox(height: 4.h),
+                    Row(
+                      children: [
+                        ...List.generate(5, (starIndex) {
+                          return Icon(
+                            Icons.star_rounded,
+                            size: 16.w,
+                            color: starIndex < review.rating.round()
+                                ? Colors.amber
+                                : Colors.grey[300]!,
+                          );
+                        }),
+                        SizedBox(width: 8.w),
+                        Text(
+                          _getTimeAgo(review.createdAt),
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (review.comment.isNotEmpty) ...[
+            SizedBox(height: 12.h),
+            Text(
+              review.comment,
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                height: 1.5,
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (review.images.isNotEmpty) ...[
+            SizedBox(height: 12.h),
+            SizedBox(
+              height: 70.h,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: review.images.length,
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: EdgeInsets.only(right: 8.w),
+                    width: 70.w,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8.r),
+                      color: Colors.grey[200],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8.r),
+                      child: _buildImageFromData(
+                        review.images[index],
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 365) {
+      final years = (difference.inDays / 365).floor();
+      return 'منذ $years ${years == 1 ? 'سنة' : 'سنوات'}';
+    } else if (difference.inDays > 30) {
+      final months = (difference.inDays / 30).floor();
+      return 'منذ $months ${months == 1 ? 'شهر' : 'أشهر'}';
+    } else if (difference.inDays > 0) {
+      return 'منذ ${difference.inDays} ${difference.inDays == 1 ? 'يوم' : 'أيام'}';
+    } else if (difference.inHours > 0) {
+      return 'منذ ${difference.inHours} ${difference.inHours == 1 ? 'ساعة' : 'ساعات'}';
+    } else if (difference.inMinutes > 0) {
+      return 'منذ ${difference.inMinutes} ${difference.inMinutes == 1 ? 'دقيقة' : 'دقائق'}';
+    } else {
+      return 'الآن';
+    }
   }
 
   Widget _buildBottomButtons() {

@@ -483,9 +483,9 @@ class _HomeScreenState extends State<HomeScreen>
       body: CustomScrollView(
         physics: PerformanceHelper.optimizedScrollPhysics,
         slivers: [
-          //_buildSliverAppBar(),
+          _buildSliverAppBar(),
           //_buildSliverCategoryFilter(),
-          SliverToBoxAdapter(child: SizedBox(height: 20.h,)),
+         // SliverToBoxAdapter(child: SizedBox(height: 20.h,)),
           _buildSliverSearchBar(),
           _buildSliverCraftsList(),
         ],
@@ -533,35 +533,49 @@ class _HomeScreenState extends State<HomeScreen>
       automaticallyImplyLeading: false,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
-                Theme.of(context).colorScheme.surface,
-              ],
-            ),
-          ),
+          padding: EdgeInsets.symmetric(horizontal: 24.w),
           child: SafeArea(
-            child: Center(
-              child: Container(
-                width: 50.w,
-                height: 50.w,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12.r),
-                  child: Image.asset(
-                    Assets.iconsLogo,
-                    width: 50.w,
-                    height: 50.w,
-                    fit: BoxFit.cover,
+            child: Row(children: [
+              Center(
+                child: Container(
+                  width: 60.w,
+                  height: 60.w,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12.r),
+                    child: Image.asset(
+                      Assets.iconsLogo,
+                      width: 60.w,
+                      height: 60.w,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),
-            ),
+              SizedBox(width: 24.w,),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppLocalizations.of(context)?.translate('welcome_greeting') ?? 'مرحبا بك...',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                  Text(
+                    AppLocalizations.of(context)?.translate('search_artisan_or_service') ?? 'ابحث عن حرفي أو خدمة...',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ],
+              )
+            ],)
           ),
         ),
       ),
@@ -582,12 +596,7 @@ class _HomeScreenState extends State<HomeScreen>
                 padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
                 child: Row(
                   children: [
-                    Image.asset(
-                      Assets.iconsLogo,
-                      width: 50.w,
-                      height: 50.w,
-                      fit: BoxFit.cover,
-                    ),
+
                     SizedBox(width: 8.w,),
                     Expanded(
                       child: Material(
@@ -756,7 +765,7 @@ class _HomeScreenState extends State<HomeScreen>
         crossAxisCount: 3,       // 3 cards per row
         mainAxisSpacing: 10,     // vertical space between rows
         crossAxisSpacing: 10,    // horizontal space between cards
-        childAspectRatio: 0.7,  // adjust card height
+        childAspectRatio: 0.75,  // adjust card height
       ),
     );
   }
@@ -782,17 +791,17 @@ class _HomeScreenState extends State<HomeScreen>
           onTap: () => context.push('/craft-details/${craft.id}'),
           borderRadius: BorderRadius.circular(20.r),
           child: Padding(
-            padding: EdgeInsets.all(20.w),
+            padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 24.h),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Icon with gradient background
                 Hero(
                   tag: 'craft_${craft.id}',
                   child: Container(
-                    width: 48.w,
-                    height: 48.w,
+                    width: 32.w,
+                    height: 32.w,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -802,7 +811,7 @@ class _HomeScreenState extends State<HomeScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(12.r),
+                      borderRadius: BorderRadius.circular(50.r),
                       boxShadow: [
                         BoxShadow(
                           color: _getCraftColor(craft.id).withValues(alpha: 0.3),
@@ -814,17 +823,15 @@ class _HomeScreenState extends State<HomeScreen>
                     child: Icon(
                       _getCraftIcon(craft.id),
                       color: Colors.white,
-                      size: 28.w,
+                      size: 24.w,
                     ),
                   ),
                 ),
                 SizedBox(height: 8.h),
-
-                // Craft name
                 Text(
                   craft.getDisplayName(Localizations.localeOf(context).languageCode),
                   style: TextStyle(
-                    fontSize: 16.sp,
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
@@ -839,19 +846,34 @@ class _HomeScreenState extends State<HomeScreen>
                     Icon(
                       Icons.people_rounded,
                       size: 14.w,
-                      color: _getCraftColor(craft.id),
+                      color:  const Color(0xFFAE41EA),
                     ),
                     SizedBox(width: 4.w),
-                    Text(
-                      '${_craftArtisanCounts[craft.id] ?? 0} ${AppLocalizations.of(context)?.translate('artisan') ?? 'حرفي'}',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: _getCraftColor(craft.id),
-                      ),
+
+                    Row(
+                      children: [
+                        Text(
+                          '${_craftArtisanCounts[craft.id] ?? 0}',
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w900,
+                            color: _getCraftColor(craft.id),
+                          ),
+                        ),
+                        SizedBox(width: 2.w,),
+                        Text(
+                          '${AppLocalizations.of(context)?.translate('artisan') ?? 'حرفي'}',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w600,
+                            color:  const Color(0xFFAE41EA),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
+
               ],
             ),
           ),
@@ -861,6 +883,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Color _getCraftColor(String craftId) {
+    return Theme.of(context).primaryColor;
     switch (craftId) {
       case 'carpenter':
         return const Color(0xFFFF6D00);

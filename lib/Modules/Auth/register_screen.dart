@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../core/Language/app_languages.dart';
+import '../../generated/assets.dart';
 import '../../providers/simple_auth_provider.dart';
 import '../../services/craft_service.dart';
 import '../../Widgets/custom_button_widget.dart';
@@ -141,15 +142,14 @@ class _RegisterScreenState extends State<RegisterScreen>
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(AppConstants.padding),
+          padding: EdgeInsets.symmetric(horizontal: 28.w,vertical: 12.h),
           child: FadeTransition(
             opacity: _fadeAnimation,
             child: SlideTransition(
               position: _slideAnimation,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  SizedBox(height: 20.h),
                   _buildHeader(),
                   SizedBox(height: 30.h),
                   _buildRegisterForm(),
@@ -174,7 +174,7 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   Widget _buildHeader() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Row(
           children: [
@@ -221,14 +221,11 @@ class _RegisterScreenState extends State<RegisterScreen>
           ),
         ),
         SizedBox(height: 8.h),
-        Text(
-          _isArtisanMode
-              ? (AppLocalizations.of(context)?.translate('register_artisan_subtitle') ?? 'سجل حسابك كحرفي وابدأ في تقديم خدماتك')
-              : (AppLocalizations.of(context)?.translate('register_subtitle') ?? 'انضم إلينا واستمتع بخدماتنا'),
-          style: TextStyle(
-            fontSize: 16.sp,
-            color: Theme.of(context).colorScheme.outline,
-          ),
+        Image.asset(
+          Assets.iconsLogo,
+          width: 70.w,
+          height: 70.w,
+          fit: BoxFit.cover,
         ),
       ],
     );
@@ -240,6 +237,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       child: Column(
         children: [
           CustomTextFieldWidget(
+            borderRadiusValue: 10.r,
             controller: _nameController,
             hint: AppLocalizations.of(context)?.translate('full_name') ?? 'الاسم الكامل',
             prefixIcon: Icon(Icons.person_outline, color: Theme.of(context).colorScheme.outline),
@@ -256,6 +254,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           ),
           SizedBox(height: AppConstants.padding),
           CustomTextFieldWidget(
+            borderRadiusValue: 10.r,
             controller: _emailController,
             hint: AppLocalizations.of(context)?.translate('enter_email') ?? 'أدخل بريدك الإلكتروني',
             textInputType: TextInputType.emailAddress,
@@ -272,6 +271,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           ),
           SizedBox(height: AppConstants.padding),
           CustomTextFieldWidget(
+            borderRadiusValue: 10.r,
             controller: _phoneController,
             hint: AppLocalizations.of(context)?.translate('phone_number') ?? 'رقم الهاتف',
             textInputType: TextInputType.phone,
@@ -288,6 +288,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           ),
           SizedBox(height: AppConstants.padding),
           CustomTextFieldWidget(
+            borderRadiusValue: 10.r,
             controller: _passwordController,
             hint: AppLocalizations.of(context)?.translate('enter_password') ?? 'أدخل كلمة المرور',
             prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).colorScheme.outline),
@@ -320,6 +321,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           ),
           SizedBox(height: AppConstants.padding),
           CustomTextFieldWidget(
+            borderRadiusValue: 10.r,
             controller: _confirmPasswordController,
             hint: AppLocalizations.of(context)?.translate('confirm_password') ?? 'تأكيد كلمة المرور',
             prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).colorScheme.outline),

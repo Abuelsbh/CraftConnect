@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../Models/artisan_model.dart';
+import '../../generated/assets.dart';
 import '../../providers/simple_auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/app_provider.dart';
@@ -304,28 +305,28 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
     return Column(
       children: [
         // عرض نوع الترتيب إذا كان محدداً
-        if (_sortType != SortType.none)
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: AppConstants.padding, vertical: 8.h),
-            color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.3),
-            child: Row(
-              children: [
-                Icon(
-                  _sortType == SortType.rating ? Icons.star : Icons.location_on,
-                  size: 16.w,
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-                SizedBox(width: 8.w),
-                Text(
-                  _getSortText(),
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        // if (_sortType != SortType.none)
+        //   Container(
+        //     padding: EdgeInsets.symmetric(horizontal: AppConstants.padding, vertical: 8.h),
+        //     color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.3),
+        //     child: Row(
+        //       children: [
+        //         Icon(
+        //           _sortType == SortType.rating ? Icons.star : Icons.location_on,
+        //           size: 16.w,
+        //           color: Theme.of(context).colorScheme.secondary,
+        //         ),
+        //         SizedBox(width: 8.w),
+        //         Text(
+        //           _getSortText(),
+        //           style: TextStyle(
+        //             fontSize: 12.sp,
+        //             color: Theme.of(context).colorScheme.secondary,
+        //           ),
+        //         ),
+        //       ],
+        //     ),
+        //   ),
         _buildHeader(),
         Expanded(
           child: _buildArtisansList(),
@@ -338,7 +339,7 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
     return Container(
       padding: EdgeInsets.all(AppConstants.padding),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+        color: Theme.of(context).colorScheme.surface,
         border: Border(
           bottom: BorderSide(
             color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
@@ -348,10 +349,11 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
       ),
       child: Row(
         children: [
-          Icon(
-            _getCraftIcon(widget.craftId),
-            size: 40.w,
-            color: Theme.of(context).colorScheme.primary,
+          Image.asset(
+            Assets.iconsLogo,
+            width: 60.w,
+            height: 60.w,
+            fit: BoxFit.cover,
           ),
           SizedBox(width: AppConstants.padding),
           Expanded(
