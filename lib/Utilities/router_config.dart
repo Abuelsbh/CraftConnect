@@ -7,6 +7,7 @@ import '../Modules/Review/reviews_list_screen.dart';
 import '../Modules/ArtisanRegistration/artisan_registration_screen.dart';
 import '../Modules/Splash/splash_screen.dart';
 import '../Modules/Onboarding/onboarding_screen.dart';
+import '../Modules/LanguageSelection/language_selection_screen.dart';
 import '../Modules/Home/home_screen.dart';
 import '../Modules/CraftDetails/craft_details_screen.dart';
 import '../Modules/Search/search_screen.dart';
@@ -41,6 +42,15 @@ class GoRouterConfig {
           return getCustomTransitionPage(
             state: state,
             child: const SplashScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/language-selection',
+        pageBuilder: (_, GoRouterState state) {
+          return getCustomTransitionPage(
+            state: state,
+            child: const LanguageSelectionScreen(),
           );
         },
       ),

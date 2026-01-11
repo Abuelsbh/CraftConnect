@@ -473,10 +473,7 @@ class _FaultReportsScreenState extends State<FaultReportsScreen> {
           ),
         ],
       ),
-      child: InkWell(
-        onTap: () => _showReportDetails(report),
-        borderRadius: BorderRadius.circular(16.r),
-        child: Column(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // صورة أو فيديو العطل في الأعلى
@@ -520,126 +517,76 @@ class _FaultReportsScreenState extends State<FaultReportsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // معلومات الموقع والوقت
-                  FutureBuilder<UserModel?>(
-                    future: _getUserInfo(report.userId),
-                    builder: (context, snapshot) {
-                      final user = snapshot.data;
-                      final userName = user?.name ?? (AppLocalizations.of(context)?.translate('user') ?? 'مستخدم');
-                      final locationText = report.address ?? (AppLocalizations.of(context)?.translate('location_undefined') ?? 'موقع غير محدد');
-                      final hasProfileImage = user != null && user.profileImageUrl.isNotEmpty;
-                      
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.location_on,
-                                size: 16.sp,
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                              SizedBox(width: 4.w),
-                              if (hasProfileImage) ...[
-                                CircleAvatar(
-                                  radius: 12.r,
-                                  backgroundImage: CachedNetworkImageProvider(user.profileImageUrl),
-                                  onBackgroundImageError: (_, __) {},
-                                ),
-                                SizedBox(width: 6.w),
-                              ],
-                              Expanded(
-                                child: Text(
-                                  '$userName • $locationText',
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 8.h),
-                          
-                          // الوقت
-                          Text(
-                            _formatDate(report.createdAt),
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  SizedBox(height: 12.h),
-                  
-                  // علامات الحالة والأزرار
-                  Row(
-                    children: [
-                      // علامة URGENT (إذا كان pending)
-                      if (report.status == 'pending' && report.isActive)
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20.r),
-                            border: Border.all(color: Colors.red, width: 1),
-                          ),
-                          child: Text(
-                            AppLocalizations.of(context)?.translate('urgent') ?? 'URGENT',
-                            style: TextStyle(
-                              fontSize: 11.sp,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
-                            ),
-                          ),
-                        ),
-                      // علامة Normal (دائماً تظهر)
-                      if (report.status == 'pending' && report.isActive)
-                        SizedBox(width: 8.w),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF17A2B8).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20.r),
-                          border: Border.all(color: const Color(0xFF17A2B8), width: 1),
-                        ),
-                        child: Text(
-                          AppLocalizations.of(context)?.translate('normal') ?? 'Normal',
-                          style: TextStyle(
-                            fontSize: 11.sp,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF17A2B8),
-                          ),
+                  // وصف العطل (ثلاث سطور كحد أقصى)
+                  if (report.description.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: 12.h),
+                      child: Text(
+                        report.description,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          height: 1.4,
                         ),
                       ),
-                      const Spacer(),
-                      // زر Decline للحرفيين
-                      if (isArtisan && !isOwner && report.isActive)
-                        ElevatedButton(
-                          onPressed: () {
-                            _declineReport(report);
-                          },
+                    ),
+                  
+                  // الأزرار
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // زر معاينة العطل
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _showReportDetails(report),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF7B1FA2), // بنفسجي
+                            backgroundColor: Theme.of(context).colorScheme.primary,
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20.r),
+                              borderRadius: BorderRadius.circular(12.r),
                             ),
                             elevation: 0,
                           ),
                           child: Text(
-                            AppLocalizations.of(context)?.translate('decline') ?? 'Decline',
+                            AppLocalizations.of(context)?.translate('view_details') ?? 'معاينة العطل',
                             style: TextStyle(
-                              fontSize: 12.sp,
+                              fontSize: 14.sp,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
+                      ),
+                      
+                      // زر رفض العطل (للحرفيين فقط)
+                      if (isArtisan && !isOwner && report.isActive) ...[
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              _declineReport(report);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF7B1FA2), // بنفسجي
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              AppLocalizations.of(context)?.translate('decline') ?? 'رفض',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -647,30 +594,8 @@ class _FaultReportsScreenState extends State<FaultReportsScreen> {
             ),
           ],
         ),
-      ),
+
     );
-  }
-  
-  // دالة لجلب معلومات المستخدم
-  Future<UserModel?> _getUserInfo(String userId) async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        return UserModel.fromJson({
-          'id': doc.id,
-          ...data,
-        });
-      }
-      return null;
-    } catch (e) {
-      print('خطأ في جلب معلومات المستخدم: $e');
-      return null;
-    }
   }
   
   // دالة لرفض التقرير

@@ -116,10 +116,16 @@ class _SplashScreenState extends State<SplashScreen>
 
         final prefs = await SharedPreferences.getInstance();
         final isFirstTime = prefs.getBool(AppConstants.isFirstTimeKey) ?? true;
+        final languageSelected = prefs.getBool(AppConstants.languageSelectedKey) ?? false;
 
-        if (isFirstTime) {
+        if (isFirstTime && !languageSelected) {
+          // إذا كانت المرة الأولى ولم يتم اختيار اللغة بعد
+          context.go('/language-selection');
+        } else if (isFirstTime) {
+          // إذا كانت المرة الأولى وتم اختيار اللغة
           context.go('/onboarding');
         } else {
+          // إذا لم تكن المرة الأولى
           context.go('/home');
         }
       }

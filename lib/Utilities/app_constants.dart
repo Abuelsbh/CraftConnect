@@ -47,6 +47,7 @@ class AppConstants {
 
   // Shared Preferences Keys
   static const String isFirstTimeKey = 'is_first_time';
+  static const String languageSelectedKey = 'language_selected';
   static const String currentLanguageKey = 'current_language';
   static const String themeKey = 'theme_mode';
   static const String userLocationKey = 'user_location';

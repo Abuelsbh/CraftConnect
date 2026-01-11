@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:template_2025/Modules/Maps/complete_maps_page.dart';
 import '../../Utilities/app_constants.dart';
 import '../../Utilities/performance_helper.dart';
 import '../../core/Language/locales.dart';
 import '../../generated/assets.dart';
-import '../../models/craft_model.dart';
+import '../../Models/craft_model.dart';
 import '../../providers/artisan_provider.dart';
 import '../Chat/chat_page.dart';
 import '../../providers/simple_auth_provider.dart';
 import '../Profile/profile_screen.dart';
 import '../FaultReport/fault_reports_screen.dart';
 import '../../services/artisan_service.dart';
+import '../../services/craft_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -194,6 +196,11 @@ class _HomeScreenState extends State<HomeScreen>
 
       print('📊 عدد الحرفيين المحملين: ${artisanProvider.artisans.length}');
 
+      // جلب بيانات الحرف من Firebase
+      final craftService = CraftService();
+      final craftsFromFirebase = await craftService.getAllCrafts(activeOnly: true);
+      print('📊 عدد الحرف من Firebase: ${craftsFromFirebase.length}');
+
       // تحويل بيانات الحرفيين الحقيقيين إلى CraftModel
       final craftsMap = <String, List<dynamic>>{};
       
@@ -218,23 +225,54 @@ class _HomeScreenState extends State<HomeScreen>
         _craftArtisanCounts[entry.key] = entry.value.length;
       }
 
-      // إنشاء CraftModel باستخدام البنية الصحيحة
+      // إنشاء CraftModel باستخدام بيانات Firebase إذا كانت متاحة
       _realCrafts = craftsMap.entries.map((entry) {
         final craftType = entry.key;
-        final translations = <String, String>{
-          'ar': _getCraftName(craftType),
-          'en': _getCraftNameEn(craftType),
-        };
         
-        return CraftModel(
-          id: craftType,
-          value: craftType,
-          translations: translations,
-          order: _getCraftOrder(craftType),
-          isActive: true,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
+        // البحث عن بيانات الحرفة من Firebase
+        CraftModel? craftFromFirebase;
+        try {
+          craftFromFirebase = craftsFromFirebase.firstWhere(
+            (craft) => craft.value == craftType,
+          );
+        } catch (e) {
+          // إذا لم توجد الحرفة في Firebase، استخدم البيانات الافتراضية
+          craftFromFirebase = null;
+        }
+        
+        // استخدام بيانات Firebase إذا كانت متاحة، وإلا استخدام البيانات الافتراضية
+        if (craftFromFirebase != null) {
+          return CraftModel(
+            id: craftFromFirebase.id,
+            value: craftFromFirebase.value,
+            translations: craftFromFirebase.translations.isNotEmpty 
+                ? craftFromFirebase.translations 
+                : {
+                    'ar': _getCraftName(craftType),
+                    'en': _getCraftNameEn(craftType),
+                  },
+            order: craftFromFirebase.order,
+            isActive: craftFromFirebase.isActive,
+            iconUrl: craftFromFirebase.iconUrl, // استخدام الأيقونة من Firebase
+            createdAt: craftFromFirebase.createdAt,
+            updatedAt: craftFromFirebase.updatedAt,
+          );
+        } else {
+          // استخدام البيانات الافتراضية
+          return CraftModel(
+            id: craftType,
+            value: craftType,
+            translations: {
+              'ar': _getCraftName(craftType),
+              'en': _getCraftNameEn(craftType),
+            },
+            order: _getCraftOrder(craftType),
+            isActive: true,
+            iconUrl: null, // لا توجد أيقونة مخصصة
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+        }
       }).toList();
 
       // إنشاء فئات الحرف الحقيقية
@@ -765,7 +803,7 @@ class _HomeScreenState extends State<HomeScreen>
         crossAxisCount: 3,       // 3 cards per row
         mainAxisSpacing: 10,     // vertical space between rows
         crossAxisSpacing: 10,    // horizontal space between cards
-        childAspectRatio: 0.75,  // adjust card height
+        childAspectRatio: 0.7,  // adjust card height
       ),
     );
   }
@@ -788,7 +826,7 @@ class _HomeScreenState extends State<HomeScreen>
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => context.push('/craft-details/${craft.id}'),
+          onTap: () => context.push('/craft-details/${craft.value}'),
           borderRadius: BorderRadius.circular(20.r),
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 24.h),
@@ -796,36 +834,103 @@ class _HomeScreenState extends State<HomeScreen>
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Icon with gradient background
+                // Icon with gradient background or custom icon from Firebase
                 Hero(
                   tag: 'craft_${craft.id}',
-                  child: Container(
-                    width: 32.w,
-                    height: 32.w,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          _getCraftColor(craft.id),
-                          _getCraftColor(craft.id).withValues(alpha: 0.7),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(50.r),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _getCraftColor(craft.id).withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                  child: craft.iconUrl != null && craft.iconUrl!.isNotEmpty
+                      ? Container(
+                          width: 48.w,
+                          height: 48.w,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12.r),
+                            border: Border.all(
+                              color: _getCraftColor(craft.value).withValues(alpha: 0.3),
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _getCraftColor(craft.value).withValues(alpha: 0.2),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10.r),
+                            child: CachedNetworkImage(
+                              imageUrl: craft.iconUrl!,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                width: 48.w,
+                                height: 48.w,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      _getCraftColor(craft.value),
+                                      _getCraftColor(craft.value).withValues(alpha: 0.7),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10.r),
+                                ),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                width: 48.w,
+                                height: 48.w,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      _getCraftColor(craft.value),
+                                      _getCraftColor(craft.value).withValues(alpha: 0.7),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10.r),
+                                ),
+                                child: Icon(
+                                  _getCraftIcon(craft.value),
+                                  color: Colors.white,
+                                  size: 24.w,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          width: 48.w,
+                          height: 48.w,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                _getCraftColor(craft.value),
+                                _getCraftColor(craft.value).withValues(alpha: 0.7),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12.r),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _getCraftColor(craft.value).withValues(alpha: 0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            _getCraftIcon(craft.value),
+                            color: Colors.white,
+                            size: 24.w,
+                          ),
                         ),
-                      ],
-                    ),
-                    child: Icon(
-                      _getCraftIcon(craft.id),
-                      color: Colors.white,
-                      size: 24.w,
-                    ),
-                  ),
                 ),
                 SizedBox(height: 8.h),
                 Text(
@@ -853,11 +958,11 @@ class _HomeScreenState extends State<HomeScreen>
                     Row(
                       children: [
                         Text(
-                          '${_craftArtisanCounts[craft.id] ?? 0}',
+                          '${_craftArtisanCounts[craft.value] ?? 0}',
                           style: TextStyle(
                             fontSize: 13.sp,
                             fontWeight: FontWeight.w900,
-                            color: _getCraftColor(craft.id),
+                            color: _getCraftColor(craft.value),
                           ),
                         ),
                         SizedBox(width: 2.w,),

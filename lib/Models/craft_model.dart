@@ -7,6 +7,7 @@ class CraftModel extends Equatable {
   final Map<String, String> translations; // الترجمات: {'ar': 'عطل نجارة', 'en': 'Carpentry Problem'}
   final int order; // ترتيب العرض
   final bool isActive; // هل الحرفة نشطة
+  final String? iconUrl; // رابط الأيقونة
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -16,6 +17,7 @@ class CraftModel extends Equatable {
     required this.translations,
     this.order = 0,
     this.isActive = true,
+    this.iconUrl,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -38,6 +40,7 @@ class CraftModel extends Equatable {
       translations: Map<String, String>.from(json['translations'] ?? {}),
       order: json['order'] ?? 0,
       isActive: json['isActive'] ?? true,
+      iconUrl: json['iconUrl'],
       createdAt: json['createdAt'] != null
           ? (json['createdAt'] is DateTime
               ? json['createdAt'] as DateTime
@@ -57,6 +60,7 @@ class CraftModel extends Equatable {
       'translations': translations,
       'order': order,
       'isActive': isActive,
+      'iconUrl': iconUrl,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -68,6 +72,7 @@ class CraftModel extends Equatable {
     Map<String, String>? translations,
     int? order,
     bool? isActive,
+    String? iconUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -77,6 +82,7 @@ class CraftModel extends Equatable {
       translations: translations ?? this.translations,
       order: order ?? this.order,
       isActive: isActive ?? this.isActive,
+      iconUrl: iconUrl ?? this.iconUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -89,6 +95,7 @@ class CraftModel extends Equatable {
         translations,
         order,
         isActive,
+        iconUrl,
         createdAt,
         updatedAt,
       ];

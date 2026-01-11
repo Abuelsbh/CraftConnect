@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../Models/craft_model.dart';
 import '../../core/Language/locales.dart';
 import '../../services/craft_service.dart';
+import '../../services/media_service.dart';
 import '../../core/Language/app_languages.dart';
 import '../../Utilities/app_constants.dart';
 
@@ -224,15 +226,50 @@ class _AdminCraftsManagementScreenState extends State<AdminCraftsManagementScree
                           return Card(
                             margin: EdgeInsets.only(bottom: 12.h),
                             child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: craft.isActive
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.grey,
-                                child: Text(
-                                  '${craft.order}',
-                                  style: const TextStyle(color: Colors.white),
-                                ),
-                              ),
+                              leading: craft.iconUrl != null && craft.iconUrl!.isNotEmpty
+                                  ? Container(
+                                      width: 50.w,
+                                      height: 50.h,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8.r),
+                                        border: Border.all(
+                                          color: craft.isActive
+                                              ? Theme.of(context).colorScheme.primary
+                                              : Colors.grey,
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(6.r),
+                                        child: CachedNetworkImage(
+                                          imageUrl: craft.iconUrl!,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) => Center(
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                          errorWidget: (context, url, error) => CircleAvatar(
+                                            backgroundColor: craft.isActive
+                                                ? Theme.of(context).colorScheme.primary
+                                                : Colors.grey,
+                                            child: Text(
+                                              '${craft.order}',
+                                              style: const TextStyle(color: Colors.white),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : CircleAvatar(
+                                      backgroundColor: craft.isActive
+                                          ? Theme.of(context).colorScheme.primary
+                                          : Colors.grey,
+                                      child: Text(
+                                        '${craft.order}',
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
+                                    ),
                               title: Text(
                                 craft.getDisplayName(languageCode),
                                 style: TextStyle(
@@ -321,7 +358,10 @@ class _CraftEditDialogState extends State<_CraftEditDialog> {
   final _englishController = TextEditingController();
   final _orderController = TextEditingController();
   bool _isActive = true;
+  String? _iconUrl;
+  bool _isUploadingIcon = false;
   final Uuid _uuid = const Uuid();
+  final MediaService _mediaService = MediaService();
 
   @override
   void initState() {
@@ -332,6 +372,7 @@ class _CraftEditDialogState extends State<_CraftEditDialog> {
       _englishController.text = widget.craft!.translations['en'] ?? '';
       _orderController.text = widget.craft!.order.toString();
       _isActive = widget.craft!.isActive;
+      _iconUrl = widget.craft!.iconUrl;
     } else {
       _orderController.text = '1';
     }
@@ -346,6 +387,45 @@ class _CraftEditDialogState extends State<_CraftEditDialog> {
     super.dispose();
   }
 
+  Future<void> _pickIcon() async {
+    try {
+      setState(() {
+        _isUploadingIcon = true;
+      });
+
+      final iconUrl = await _mediaService.uploadCraftIcon();
+      
+      if (iconUrl != null) {
+        setState(() {
+          _iconUrl = iconUrl;
+          _isUploadingIcon = false;
+        });
+      } else {
+        setState(() {
+          _isUploadingIcon = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isUploadingIcon = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ في رفع الأيقونة: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _removeIcon() {
+    setState(() {
+      _iconUrl = null;
+    });
+  }
+
   void _save() {
     if (_formKey.currentState!.validate()) {
       final craft = CraftModel(
@@ -357,6 +437,7 @@ class _CraftEditDialogState extends State<_CraftEditDialog> {
         },
         order: int.tryParse(_orderController.text) ?? 0,
         isActive: _isActive,
+        iconUrl: _iconUrl,
         createdAt: widget.craft?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -374,6 +455,80 @@ class _CraftEditDialogState extends State<_CraftEditDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // أيقونة الحرفة
+              Container(
+                margin: EdgeInsets.only(bottom: 16.h),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'أيقونة الحرفة',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Row(
+                      children: [
+                        // عرض الأيقونة
+                        if (_iconUrl != null)
+                          Container(
+                            width: 80.w,
+                            height: 80.h,
+                            margin: EdgeInsets.only(left: 8.w),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8.r),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8.r),
+                              child: CachedNetworkImage(
+                                imageUrl: _iconUrl!,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                                errorWidget: (context, url, error) => Icon(
+                                  Icons.error,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ),
+                          ),
+                        // زر اختيار الأيقونة
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _isUploadingIcon ? null : _pickIcon,
+                            icon: _isUploadingIcon
+                                ? SizedBox(
+                                    width: 16.w,
+                                    height: 16.h,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(Icons.add_photo_alternate),
+                            label: Text(_iconUrl == null ? 'اختر أيقونة' : 'تغيير الأيقونة'),
+                            style: ElevatedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                            ),
+                          ),
+                        ),
+                        // زر حذف الأيقونة
+                        if (_iconUrl != null)
+                          IconButton(
+                            onPressed: _removeIcon,
+                            icon: Icon(Icons.delete, color: Colors.red),
+                            tooltip: 'حذف الأيقونة',
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 8.h),
+              
               // القيمة (Value)
               TextFormField(
                 controller: _valueController,

@@ -73,6 +73,63 @@ class MediaService {
     }
   }
 
+  // رفع أيقونة حرفة
+  Future<String?> uploadCraftIcon() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 512,
+        maxHeight: 512,
+      );
+
+      if (image != null) {
+        print('📸 تم اختيار أيقونة الحرفة: ${image.path}');
+        final downloadUrl = await _uploadCraftIconToStorage(image.path);
+        print('✅ تم رفع أيقونة الحرفة بنجاح: $downloadUrl');
+        return downloadUrl;
+      }
+      print('❌ لم يتم اختيار أيقونة');
+      return null;
+    } catch (e) {
+      print('❌ خطأ في اختيار أيقونة الحرفة: $e');
+      throw Exception('فشل في اختيار أيقونة الحرفة: $e');
+    }
+  }
+
+  // رفع أيقونة حرفة إلى Firebase Storage
+  Future<String> _uploadCraftIconToStorage(String imagePath) async {
+    try {
+      print('🚀 بدء رفع أيقونة الحرفة: $imagePath');
+      
+      final file = File(imagePath);
+      if (!await file.exists()) {
+        throw Exception('الملف غير موجود: $imagePath');
+      }
+      
+      final fileName = '${_uuid.v4()}_${path.basename(imagePath)}';
+      final ref = _storage.ref().child('craft_icons/$fileName');
+      
+      print('📤 رفع أيقونة الحرفة إلى Firebase Storage...');
+      final uploadTask = ref.putFile(file);
+      
+      // مراقبة تقدم الرفع
+      uploadTask.snapshotEvents.listen((snapshot) {
+        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+        print('📊 تقدم رفع الأيقونة: ${(progress * 100).toStringAsFixed(1)}%');
+      });
+      
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      
+      print('✅ تم رفع أيقونة الحرفة بنجاح: $downloadUrl');
+      return downloadUrl;
+    } catch (e) {
+      print('❌ خطأ في رفع أيقونة الحرفة: $e');
+      throw Exception('فشل في رفع أيقونة الحرفة: $e');
+    }
+  }
+
   // رفع ملف
   Future<Map<String, String>?> uploadFile() async {
     try {

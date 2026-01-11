@@ -77,32 +77,30 @@ class FaultProvider extends ChangeNotifier {
 
   // تحويل نوع الحرفة إلى نوع العطل المقابل
   String? _convertCraftTypeToFaultType(String craftType) {
-    // معظم أنواع الحرف تتطابق مع أنواع الأعطال
-    // لكن بعضها يحتاج تحويل
-    switch (craftType) {
-      case 'carpenter':
-        return 'carpenter';
-      case 'electrician':
-        return 'electrical';
-      case 'plumber':
-        return 'plumbing';
-      case 'painter':
-        return 'painter';
-      case 'mechanic':
-        return 'mechanic';
-      case 'hvac':
-        return 'hvac';
-      case 'satellite':
-        return 'satellite';
-      case 'internet':
-        return 'internet';
-      case 'tiler':
-        return 'tiler';
-      case 'locksmith':
-        return 'locksmith';
-      default:
-        return null;
+    // التحقق من أن craftType ليس فارغاً
+    if (craftType.isEmpty) {
+      print('⚠️ نوع الحرفة فارغ');
+      return null;
     }
+    
+    // بعض أنواع الحرف تحتاج تحويل خاص
+    // لأن أسماء الحرف قد تختلف عن أسماء أنواع الأعطال
+    final conversionMap = {
+      'electrician': 'electrical',
+      'plumber': 'plumbing',
+    };
+    
+    // إذا كان هناك تحويل خاص، استخدمه
+    if (conversionMap.containsKey(craftType)) {
+      print('🔄 تحويل خاص: $craftType -> ${conversionMap[craftType]}');
+      return conversionMap[craftType];
+    }
+    
+    // لجميع الحالات الأخرى، استخدم craftType مباشرة
+    // لأن معظم الحرف تستخدم نفس القيمة في faultType
+    // وهذا يسمح للحرف الجديدة بالعمل تلقائياً دون تعديل الكود
+    print('✅ استخدام نوع الحرفة مباشرة: $craftType');
+    return craftType;
   }
 
   // إنشاء تقرير عطل جديد

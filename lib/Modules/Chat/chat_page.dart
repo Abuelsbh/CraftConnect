@@ -32,19 +32,7 @@ class ChatPage extends StatelessWidget {
             color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
-        actions: [
-          if (authProvider.isLoggedIn)
-            IconButton(
-              onPressed: () {
-                // TODO: Add search functionality
-                context.push('/search');
-              },
-              icon: Icon(
-                Icons.search_rounded,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-        ],
+        actions: [],
       ),
       body: authProvider.isLoggedIn 
           ? _buildLoggedInContent(context, chatProvider)
@@ -139,31 +127,6 @@ class ChatPage extends StatelessWidget {
               color: Theme.of(context).colorScheme.outline,
             ),
             textAlign: TextAlign.center,
-          ),
-          SizedBox(height: AppConstants.padding),
-          ElevatedButton.icon(
-            onPressed: () {
-              context.push('/search');
-            },
-            icon: Icon(Icons.search_rounded, size: 20.w),
-            label: Text(
-              'البحث عن حرفيين',
-              style: TextStyle(
-                fontSize: 16.sp,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(
-                horizontal: 24.w,
-                vertical: 12.h,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-              ),
-            ),
           ),
         ],
       ),

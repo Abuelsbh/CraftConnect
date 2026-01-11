@@ -72,11 +72,31 @@ class _CraftDetailsScreenState extends State<CraftDetailsScreen> {
         await appProvider.loadInitialData();
       }
       // تحميل الحرفيين من Firebase حسب نوع الحرفة (المتاحين فقط)
+      print('🔍 البحث عن حرفيين من نوع: ${widget.craftId}');
+      
+      // محاولة البحث بدون شرط isAvailable أولاً لمعرفة عدد الحرفيين الكلي
+      final allArtisansSnapshot = await _firestore
+          .collection('artisans')
+          .where('craftType', isEqualTo: widget.craftId)
+          .get();
+      
+      print('📊 عدد الحرفيين الكلي من نوع ${widget.craftId}: ${allArtisansSnapshot.docs.length}');
+      
+      // طباعة أنواع الحرف الفعلية في Firebase (للتحقق)
+      if (allArtisansSnapshot.docs.isNotEmpty) {
+        print('📋 أنواع الحرف الفعلية في Firebase:');
+        final craftTypes = allArtisansSnapshot.docs.map((doc) => doc.data()['craftType']).toSet();
+        craftTypes.forEach((type) => print('  - $type'));
+      }
+      
+      // البحث مع شرط isAvailable
       final querySnapshot = await _firestore
           .collection('artisans')
           .where('craftType', isEqualTo: widget.craftId)
           .where('isAvailable', isEqualTo: true)
           .get();
+      
+      print('📊 عدد الحرفيين المتاحين من نوع ${widget.craftId}: ${querySnapshot.docs.length}');
 
       final List<ArtisanModel> artisans = [];
       final reviewService = ReviewService();

@@ -47,7 +47,7 @@ class _ProblemReportStepperScreenState extends State<ProblemReportStepperScreen>
   String? _selectedVideoPath;
   String? _existingVideoUrl; // الفيديو الموجود من التقرير الأصلي
   VideoPlayerController? _videoPlayerController;
-  String _selectedFaultType = 'carpenter'; // القيمة الافتراضية
+  String _selectedFaultType = ''; // لا يوجد تحديد افتراضي - يجب على المستخدم الاختيار
   String _selectedServiceType = '';
   bool _isLoading = false;
   bool _isUploading = false;
@@ -109,10 +109,7 @@ class _ProblemReportStepperScreenState extends State<ProblemReportStepperScreen>
         setState(() {
           _faultTypes = crafts;
           _isLoadingCrafts = false;
-          // تعيين القيمة الافتراضية إذا كانت القائمة غير فارغة
-          if (_faultTypes.isNotEmpty && _selectedFaultType.isEmpty) {
-            _selectedFaultType = _faultTypes.first['value'] ?? 'carpenter';
-          }
+          // لا يتم تحديد نوع العطل تلقائياً - يجب على المستخدم الاختيار
         });
       }
     } catch (e) {
@@ -145,9 +142,9 @@ class _ProblemReportStepperScreenState extends State<ProblemReportStepperScreen>
             if (exists) {
               _selectedFaultType = faultType;
             } else {
-              // إذا لم تكن القيمة موجودة، استخدم أول حرفة في القائمة
-              _selectedFaultType = _faultTypes.first['value'] ?? 'carpenter';
-              print('⚠️ نوع العطل "$faultType" غير موجود في Firebase - تم تعيينه إلى: $_selectedFaultType');
+              // إذا لم تكن القيمة موجودة، استخدم القيمة الأصلية من التقرير
+              _selectedFaultType = faultType;
+              print('⚠️ نوع العطل "$faultType" غير موجود في Firebase - سيتم استخدام القيمة الأصلية');
             }
           } else {
             _selectedFaultType = faultType;
@@ -624,6 +621,12 @@ class _ProblemReportStepperScreenState extends State<ProblemReportStepperScreen>
 
   // إرسال التقرير
   Future<void> _submitReport() async {
+    // التحقق من اختيار نوع العطل
+    if (_selectedFaultType.isEmpty) {
+      _showErrorToast(AppLocalizations.of(context)?.translate('fault_type_required') ?? 'يجب اختيار نوع العطل');
+      return;
+    }
+    
     // التحقق من وجود صورة واحدة على الأقل أو فيديو (صورة أو فيديو)
     final hasImages = _selectedImages.isNotEmpty || _existingImageUrls.isNotEmpty;
     final hasVideo = _selectedVideoPath != null || _existingVideoUrl != null;
@@ -912,14 +915,16 @@ class _ProblemReportStepperScreenState extends State<ProblemReportStepperScreen>
   }
 
   Widget _buildStep2Content() {
-    // التأكد من أن selectedFaultType موجود في القائمة
+    // التحقق من أن selectedFaultType موجود في القائمة (فقط في وضع التعديل)
     String validSelectedType = _selectedFaultType;
-    if (_faultTypes.isNotEmpty) {
+    if (_selectedFaultType.isNotEmpty && _faultTypes.isNotEmpty) {
       final exists = _faultTypes.any((craft) => craft['value'] == _selectedFaultType);
       if (!exists) {
-        validSelectedType = _faultTypes.first['value'] ?? 'carpenter';
+        // في وضع التعديل، إذا لم يكن النوع موجوداً، استخدم القيمة الأصلية
+        validSelectedType = _selectedFaultType;
       }
     }
+    // إذا كان فارغاً، يبقى فارغاً - لا يتم تحديد تلقائي
     
     return Step2FaultTypeWidget(
       faultTypes: _faultTypes,

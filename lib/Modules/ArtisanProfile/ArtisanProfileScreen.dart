@@ -320,6 +320,14 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
                 ),
                 SizedBox(height: 4.h),
                 Text(
+                  _artisan!.email,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8),
+                  ),
+                ),
+                SizedBox(height: 4.h),
+                Text(
                   AppLocalizations.of(context)?.translate(_artisan!.craftType) ?? _getCraftNameArabic(_artisan!.craftType),
                   style: TextStyle(
                     fontSize: 14.sp,
@@ -577,6 +585,33 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
                       style: TextStyle(
                         fontSize: 14.sp,
                         color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+                        if (authProvider.isLoggedIn) {
+                          context.push('/add-review/${widget.artisanId}?name=${Uri.encodeComponent(_artisan!.name)}');
+                        } else {
+                          _showLoginDialog();
+                        }
+                      },
+                      icon: Icon(Icons.add_rounded, size: 18.w),
+                      label: Text(
+                        AppLocalizations.of(context)?.translate('add_review') ?? 'إضافة تقييم',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10.r),
+                        ),
                       ),
                     ),
                   ],
