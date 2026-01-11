@@ -13,6 +13,7 @@ import '../../providers/chat_provider.dart';
 import '../../services/fault_service.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
+import '../../generated/assets.dart';
 import 'widgets/video_player_dialog.dart';
 
 class FaultReportDetailsScreen extends StatefulWidget {
@@ -28,6 +29,7 @@ class _FaultReportDetailsScreenState extends State<FaultReportDetailsScreen> {
   final FaultService _faultService = FaultService();
   FaultReportModel? _report;
   bool _isLoading = true;
+  int _declinedCount = 0;
   
   final Map<String, AudioPlayer> _audioPlayers = {};
   final Map<String, bool> _isPlayingMap = {};
@@ -39,7 +41,10 @@ class _FaultReportDetailsScreenState extends State<FaultReportDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadReport().then((_) => _incrementViews());
+    _loadReport().then((_) {
+      _incrementViews();
+      _loadDeclinedCount();
+    });
   }
 
   Future<void> _loadReport() async {
@@ -91,6 +96,21 @@ class _FaultReportDetailsScreenState extends State<FaultReportDetailsScreen> {
     }
   }
 
+  Future<void> _loadDeclinedCount() async {
+    if (_report == null) return;
+    
+    try {
+      final declinedArtisanIds = await _faultService.getDeclinedArtisanIds(widget.reportId);
+      if (mounted) {
+        setState(() {
+          _declinedCount = declinedArtisanIds.length;
+        });
+      }
+    } catch (e) {
+      print('⚠️ خطأ في جلب عدد المرفوضين: $e');
+    }
+  }
+
   @override
   void dispose() {
     for (var player in _audioPlayers.values) {
@@ -135,7 +155,30 @@ class _FaultReportDetailsScreenState extends State<FaultReportDetailsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppLocalizations.of(context)?.translate('report_details') ?? 'تفاصيل التقرير'),
+        title: Row(
+          children: [
+            Container(
+              width: 32.w,
+              height: 32.w,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8.r),
+                child: Image.asset(
+                  Assets.iconsLogo,
+                  width: 32.w,
+                  height: 32.w,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Text(AppLocalizations.of(context)?.translate('report_details') ?? 'تفاصيل التقرير'),
+            ),
+          ],
+        ),
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
       ),
@@ -195,10 +238,7 @@ class _FaultReportDetailsScreenState extends State<FaultReportDetailsScreen> {
               AppLocalizations.of(context)?.translate('fault_type_label') ?? 'نوع العطل', 
               _getFaultTypeText(_report!.faultType)
             ),
-            _buildDetailRow(
-              AppLocalizations.of(context)?.translate('service_type') ?? 'نوع الخدمة', 
-              _report!.serviceType
-            ),
+
             _buildDetailRow(
               AppLocalizations.of(context)?.translate('created_date') ?? 'تاريخ الإنشاء', 
               _formatDate(_report!.createdAt)
@@ -224,12 +264,11 @@ class _FaultReportDetailsScreenState extends State<FaultReportDetailsScreen> {
            /* if (_report!.latitude != null && _report!.longitude != null)
               _buildLocationRow('الموقع', '${_report!.latitude!.toStringAsFixed(6)}, ${_report!.longitude!.toStringAsFixed(6)}', _report!.latitude, _report!.longitude),
             */
-            // Views Count (for report owner only)
-            if (Provider.of<SimpleAuthProvider>(context).currentUser?.id == _report!.userId && _report!.viewsCount > 0)
-              _buildDetailRow(
-                AppLocalizations.of(context)?.translate('views_count') ?? 'عدد المشاهدات', 
-                '${_report!.viewsCount} ${AppLocalizations.of(context)?.translate('artisan_viewed') ?? 'حرفي شاهد هذا العطل'}'
-              ),
+            SizedBox(height: 16.h),
+            
+            // Statistics (for report owner only)
+            if (Provider.of<SimpleAuthProvider>(context).currentUser?.id == _report!.userId)
+              _buildStatisticsSection(),
             
             SizedBox(height: 16.h),
             
@@ -455,6 +494,91 @@ class _FaultReportDetailsScreenState extends State<FaultReportDetailsScreen> {
             },
           ),
       ],
+    );
+  }
+
+  Widget _buildStatisticsSection() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          // Views Count
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12.w),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Icon(
+                    Icons.visibility_rounded,
+                    color: Colors.blue,
+                    size: 28.sp,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  '${_report!.viewsCount}',
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Divider
+          Container(
+            width: 1,
+            height: 50.h,
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          ),
+          
+          // Declined Count
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12.w),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Icon(
+                    Icons.cancel_rounded,
+                    color: Colors.red,
+                    size: 28.sp,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  '$_declinedCount',
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

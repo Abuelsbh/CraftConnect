@@ -563,7 +563,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildSliverAppBar() {
     return SliverAppBar(
-      expandedHeight: 80.h,
+      expandedHeight: 100.h,
       floating: false,
       pinned: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -571,13 +571,13 @@ class _HomeScreenState extends State<HomeScreen>
       automaticallyImplyLeading: false,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
-          padding: EdgeInsets.symmetric(horizontal: 24.w),
+          padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 2.h),
           child: SafeArea(
             child: Row(children: [
               Center(
                 child: Container(
-                  width: 60.w,
-                  height: 60.w,
+                  width: 68.w,
+                  height: 68.w,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12.r),
                   ),
@@ -585,8 +585,8 @@ class _HomeScreenState extends State<HomeScreen>
                     borderRadius: BorderRadius.circular(12.r),
                     child: Image.asset(
                       Assets.iconsLogo,
-                      width: 60.w,
-                      height: 60.w,
+                      width: 68.w,
+                      height: 68.w,
                       fit: BoxFit.cover,
                     ),
                   ),

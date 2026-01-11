@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:template_2025/generated/assets.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../Utilities/app_constants.dart';
@@ -18,6 +19,8 @@ import '../../Models/artisan_model.dart';
 import '../../providers/simple_auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/favorite_provider.dart';
+import '../../services/craft_service.dart';
+import '../../Models/craft_model.dart';
 
 class CompleteMapsPage extends StatefulWidget {
   const CompleteMapsPage({super.key});
@@ -43,6 +46,9 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
   String? _errorMessage;
   String _selectedCraftType = 'all';
   LatLng? _userLocation;
+  List<String> _adminCraftTypes = []; // قائمة أنواع الحرف التي أضافها المسؤول
+  List<CraftModel> _adminCrafts = []; // قائمة نماذج الحرف الكاملة
+  final CraftService _craftService = CraftService();
 
   final List<String> _craftTypes = [
     'all',
@@ -74,6 +80,9 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
       // تحقق من صلاحيات الموقع
       await _checkLocationPermission();
       
+      // تحميل أنواع الحرف من Firebase (التي أضافها المسؤول)
+      await _loadAdminCrafts();
+      
       // تحميل بيانات الحرفيين
       await _loadArtisansData();
       
@@ -100,6 +109,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
       
       // حتى لو حدث خطأ، نعرض البيانات مع الموقع الافتراضي
       _userLocation = _defaultLocation.target;
+      await _loadAdminCrafts();
       await _loadArtisansData();
       await _createMarkers();
     }
@@ -158,6 +168,24 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
     }
   }
 
+  Future<void> _loadAdminCrafts() async {
+    try {
+      final crafts = await _craftService.getAllCrafts(activeOnly: true);
+      setState(() {
+        _adminCrafts = crafts;
+        _adminCraftTypes = crafts.map((craft) => craft.value).toList();
+      });
+      print('✅ تم تحميل ${_adminCraftTypes.length} نوع حرفة من المسؤول');
+    } catch (e) {
+      print('⚠️ خطأ في تحميل أنواع الحرف: $e');
+      // في حالة الخطأ، نستخدم قائمة فارغة (لن يظهر أي حرفيين)
+      setState(() {
+        _adminCrafts = [];
+        _adminCraftTypes = [];
+      });
+    }
+  }
+
   Future<void> _loadArtisansData() async {
     try {
       setState(() {
@@ -176,7 +204,11 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         try {
           final artisanData = doc.data() as Map<String, dynamic>;
           final artisan = ArtisanModel.fromJson(artisanData);
-          artisans.add(artisan);
+          
+          // تصفية: إظهار فقط الحرفيين الذين تمت إضافة مهنتهم من قبل المسؤول
+          if (_adminCraftTypes.isEmpty || _adminCraftTypes.contains(artisan.craftType)) {
+            artisans.add(artisan);
+          }
         } catch (e) {
           print('خطأ في تحويل بيانات الحرفي ${doc.id}: $e');
         }
@@ -279,7 +311,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
           icon: BitmapDescriptor.defaultMarkerWithHue(_getMarkerColor(artisan.craftType)),
           infoWindow: InfoWindow(
             title: artisan.name,
-            snippet: '${_getCraftNameArabic(artisan.craftType)} • ${artisan.rating} ⭐ • ${distance.toStringAsFixed(1)} كم',
+            snippet: '${_getCraftNameArabic(artisan.craftType, _adminCrafts)} • ${artisan.rating} ⭐ • ${distance.toStringAsFixed(1)} كم',
             onTap: () => _showArtisanBottomSheet(artisan, distance),
           ),
           onTap: () => _showArtisanBottomSheet(artisan, distance),
@@ -347,7 +379,25 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
     }
   }
 
-  String _getCraftNameArabic(String craftType) {
+  String _getCraftNameArabic(String craftType, List<CraftModel> crafts) {
+    // البحث عن الحرفة في قائمة الحرف من Firebase
+    final craft = crafts.firstWhere(
+      (c) => c.value == craftType,
+      orElse: () => CraftModel(
+        id: '',
+        value: craftType,
+        translations: {},
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+    
+    // استخدام الترجمة العربية من Firebase، أو القيم الافتراضية كبديل
+    if (craft.translations.containsKey('ar') && craft.translations['ar']!.isNotEmpty) {
+      return craft.translations['ar']!;
+    }
+    
+    // القيم الافتراضية كـ fallback
     switch (craftType) {
       case 'carpenter':
         return 'نجار';
@@ -486,7 +536,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                                   borderRadius: BorderRadius.circular(8.r),
                                 ),
                                 child: Text(
-                                  _getCraftNameArabic(artisan.craftType),
+                                  _getCraftNameArabic(artisan.craftType, _adminCrafts),
                                   style: TextStyle(
                                     fontSize: 12.sp,
                                     color: _getCraftColor(artisan.craftType),
@@ -1083,12 +1133,35 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
-        title: Text(
-          'خريطة الحرفيين',
-          style: TextStyle(
-            fontSize: 20.sp,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
+        automaticallyImplyLeading: false,
+        flexibleSpace: SafeArea(
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
+            child: Row(
+              children: [
+                // شعار التطبيق
+                Container(
+                  width: 50.w,
+                  height: 50.w,
+                  child: Image.asset(Assets.iconsLogo,)
+                ),
+                SizedBox(width: 12.w),
+                // العنوان
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                    child: Text(
+                      'خريطة الحرفيين',
+                      style: TextStyle(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -1256,6 +1329,9 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
   }
 
   Widget _buildFilterChips() {
+    // بناء قائمة أنواع الحرف مع "الكل" في البداية
+    final craftTypesList = ['all', ..._adminCraftTypes];
+    
     return Positioned(
       bottom: 16.h,
       left: 16.w,
@@ -1264,9 +1340,9 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
         height: 50.h,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
-          itemCount: _craftTypes.length,
+          itemCount: craftTypesList.length,
           itemBuilder: (context, index) {
-            final craftType = _craftTypes[index];
+            final craftType = craftTypesList[index];
             final isSelected = _selectedCraftType == craftType;
             final count = craftType == 'all' 
                 ? _artisans.length 
@@ -1284,7 +1360,9 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      craftType == 'all' ? 'الكل' : _getCraftNameArabic(craftType),
+                      craftType == 'all' 
+                          ? 'الكل' 
+                          : _getCraftNameArabic(craftType, _adminCrafts),
                       style: TextStyle(
                         fontSize: 12.sp,
                         color: isSelected ? Colors.white : craftColor,
@@ -1448,7 +1526,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
               ],
             ),
             SizedBox(height: 4.h),
-            ..._craftTypes.where((type) => type != 'all').map((type) {
+            ..._adminCraftTypes.map((type) {
               return Padding(
                 padding: EdgeInsets.only(bottom: 2.h),
                 child: Row(
@@ -1461,7 +1539,7 @@ class _CompleteMapsPageState extends State<CompleteMapsPage> {
                     ),
                     SizedBox(width: 6.w),
                     Text(
-                      _getCraftNameArabic(type),
+                      _getCraftNameArabic(type, _adminCrafts),
                       style: TextStyle(
                         fontSize: 11.sp,
                         color: Colors.black87,
