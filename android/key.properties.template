@@ -1,0 +1,5 @@
+storePassword=000111
+keyPassword=000111
+keyAlias=PIX & FIX
+storeFile=upload-keystore.jks
+
