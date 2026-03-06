@@ -10,10 +10,9 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-    <!-- Android 13+ permissions for file access -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Android 13+ permissions - READ_MEDIA_IMAGES/VIDEO removed to comply with
+         Google Play policy; using system Photo Picker instead -->
+<!--    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />-->
     
     <!-- Network and storage permissions -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
