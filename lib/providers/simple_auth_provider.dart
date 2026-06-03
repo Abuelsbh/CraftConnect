@@ -1,9 +1,10 @@
-import 'dart:convert';
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../Models/user_model.dart';
 import '../Utilities/shared_preferences.dart';
 import '../providers/artisan_provider.dart';
@@ -22,11 +23,12 @@ class SimpleAuthProvider with ChangeNotifier {
 
   final fb.FirebaseAuth _auth = fb.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // serverClientId: Web OAuth client ID من Firebase Console - مطلوب لـ Firebase Auth
+  static const String _googleWebClientId =
+      '321053041363-3ql62dldat36qi5kgks67vop1e20nop3.apps.googleusercontent.com';
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [
-      'email',
-      'profile',
-    ],
+    scopes: ['email', 'profile'],
+    serverClientId: _googleWebClientId,
   );
 
   SimpleAuthProvider() {
@@ -476,7 +478,8 @@ class SimpleAuthProvider with ChangeNotifier {
   }
 
   // تسجيل الدخول مع Google
-  Future<bool> loginWithGoogle() async {
+  /// [userType] نوع المستخدم: 'user' للعميل أو 'artisan' للحرفي (يُستخدم عند التسجيل من صفحة تسجيل الحرفي)
+  Future<bool> loginWithGoogle({String userType = 'user'}) async {
     try {
       _setLoading(true);
       _setError(null);
@@ -528,6 +531,9 @@ class SimpleAuthProvider with ChangeNotifier {
       
       if (!userExists) {
         // إنشاء حساب جديد للمستخدم
+        final isArtisan = userType == 'artisan';
+        final artisanId = isArtisan ? DateTime.now().millisecondsSinceEpoch.toString() : null;
+
         _currentUser = UserModel(
           id: user.uid,
           name: user.displayName ?? 'مستخدم',
@@ -535,15 +541,40 @@ class SimpleAuthProvider with ChangeNotifier {
           phone: user.phoneNumber ?? '',
           profileImageUrl: user.photoURL ?? '',
           token: '',
-          userType: 'user',
-          artisanId: null,
+          userType: userType,
+          artisanId: artisanId,
           createdAt: user.metadata.creationTime ?? DateTime.now(),
           updatedAt: user.metadata.lastSignInTime ?? DateTime.now(),
         );
-        
+
         // حفظ بيانات المستخدم في Firestore
         try {
           await _saveUserToFirestore(_currentUser!);
+
+          // إذا كان تسجيل حرفي، إنشاء سجل حرفي أساسي (سيُكمل بياناته لاحقاً)
+          if (isArtisan && artisanId != null) {
+            final artisanData = {
+              'id': artisanId,
+              'name': user.displayName ?? 'مستخدم',
+              'email': user.email ?? '',
+              'phone': user.phoneNumber ?? '',
+              'profileImageUrl': user.photoURL ?? '',
+              'craftType': 'carpenter',
+              'yearsOfExperience': 1,
+              'description': '',
+              'latitude': 0.0,
+              'longitude': 0.0,
+              'address': '',
+              'rating': 0.0,
+              'reviewCount': 0,
+              'galleryImages': <String>[],
+              'skills': <String>[],
+              'isAvailable': false,
+              'createdAt': DateTime.now().toIso8601String(),
+              'updatedAt': DateTime.now().toIso8601String(),
+            };
+            await _firestore.collection('artisans').doc(artisanId).set(artisanData);
+          }
         } catch (e) {
           if (kDebugMode) {
             print('تحذير: فشل في حفظ البيانات في Firestore: $e');
@@ -602,6 +633,139 @@ class SimpleAuthProvider with ChangeNotifier {
       } else {
         _setError('حدث خطأ غير متوقع: ${e.toString()}');
       }
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// التحقق من توفر Sign in with Apple (iOS 13+ أو Android)
+  static Future<bool> isAppleSignInAvailable() async {
+    if (Platform.isIOS) {
+      return await SignInWithApple.isAvailable();
+    }
+    // على Android يتوفر عبر Web flow
+    return Platform.isAndroid;
+  }
+
+  // تسجيل الدخول مع Apple
+  /// [userType] نوع المستخدم: 'user' للعميل أو 'artisan' للحرفي (يُستخدم عند التسجيل من صفحة تسجيل الحرفي)
+  Future<bool> loginWithApple({String userType = 'user'}) async {
+    try {
+      _setLoading(true);
+      _setError(null);
+
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final oauthCredential = fb.OAuthProvider('apple.com').credential(
+        idToken: credential.identityToken,
+        accessToken: credential.authorizationCode,
+      );
+
+      final userCredential =
+          await _auth.signInWithCredential(oauthCredential);
+      final user = userCredential.user;
+
+      if (user == null) {
+        _setError('فشل في تسجيل الدخول مع Apple');
+        return false;
+      }
+
+      // Apple قد لا يعيد البريد/الاسم في كل مرة - استخدم القيم المحفوظة إن وجدت
+      final displayName = credential.givenName != null || credential.familyName != null
+          ? '${credential.givenName ?? ''} ${credential.familyName ?? ''}'.trim()
+          : user.displayName ?? 'مستخدم Apple';
+      final email = credential.email ?? user.email ?? '';
+
+      final userExists = await userExistsInFirestore(user.uid);
+
+      if (!userExists) {
+        final isArtisan = userType == 'artisan';
+        final artisanId = isArtisan ? DateTime.now().millisecondsSinceEpoch.toString() : null;
+
+        _currentUser = UserModel(
+          id: user.uid,
+          name: displayName.isNotEmpty ? displayName : 'مستخدم',
+          email: email,
+          phone: user.phoneNumber ?? '',
+          profileImageUrl: user.photoURL ?? '',
+          token: '',
+          userType: userType,
+          artisanId: artisanId,
+          createdAt: user.metadata.creationTime ?? DateTime.now(),
+          updatedAt: user.metadata.lastSignInTime ?? DateTime.now(),
+        );
+        try {
+          await _saveUserToFirestore(_currentUser!);
+
+          if (isArtisan && artisanId != null) {
+            final artisanData = {
+              'id': artisanId,
+              'name': displayName.isNotEmpty ? displayName : 'مستخدم',
+              'email': email,
+              'phone': user.phoneNumber ?? '',
+              'profileImageUrl': user.photoURL ?? '',
+              'craftType': 'carpenter',
+              'yearsOfExperience': 1,
+              'description': '',
+              'latitude': 0.0,
+              'longitude': 0.0,
+              'address': '',
+              'rating': 0.0,
+              'reviewCount': 0,
+              'galleryImages': <String>[],
+              'skills': <String>[],
+              'isAvailable': false,
+              'createdAt': DateTime.now().toIso8601String(),
+              'updatedAt': DateTime.now().toIso8601String(),
+            };
+            await _firestore.collection('artisans').doc(artisanId).set(artisanData);
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('تحذير: فشل في حفظ البيانات في Firestore: $e');
+          }
+        }
+      } else {
+        try {
+          await _loadUserFromFirestore(user.uid);
+        } catch (e) {
+          if (kDebugMode) {
+            print('تحذير: فشل في تحميل البيانات من Firestore: $e');
+          }
+          _currentUser = _mapFirebaseUserToUserModel(user);
+        }
+      }
+
+      _isLoggedIn = true;
+      try {
+        await _saveUserLocally();
+      } catch (e) {
+        if (kDebugMode) {
+          print('تحذير: فشل في حفظ البيانات محلياً: $e');
+        }
+      }
+      return true;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        _setError('تم إلغاء عملية تسجيل الدخول');
+      } else {
+        _setError('فشل في تسجيل الدخول مع Apple: ${e.message}');
+      }
+      return false;
+    } on fb.FirebaseAuthException catch (e) {
+      _setError(_firebaseErrorToArabic(e));
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('خطأ في تسجيل الدخول مع Apple: $e');
+      }
+      _setError('حدث خطأ غير متوقع: ${e.toString()}');
       return false;
     } finally {
       _setLoading(false);

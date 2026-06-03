@@ -45,9 +45,38 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	
-	<!-- Microphone permission for voice recording -->
+
+	<!-- App Store / export compliance: standard HTTPS only, no custom encryption -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<!-- Location (maps, registration, chat location, artisan profile) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>نستخدم موقعك لعرض الخريطة وترتيب الحرفيين حسب القرب وتحديد عنوانك عند التسجيل أو إرسال الموقع في المحادثة. / We use your location to show the map, sort artisans by distance, and set your address when registering or sending location in chat.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>نستخدم موقعك لتحسين تجربة الخرائط والخدمات القريبة منك عند الحاجة. / We use your location to improve maps and nearby services when needed.</string>
+
+	<!-- Camera & photo library (profile, reports, chat media) -->
+	<key>NSCameraUsageDescription</key>
+	<string>نحتاج الكاميرا لتصوير الأعطال أو صورة الملف الشخصي أو مرفقات الدردشة. / The camera is used to photograph faults, profile photos, or chat attachments.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>نحتاج الوصول للصور والفيديو لاختيار مرفقات من المعرض. / Photo and video access lets you pick attachments from your library.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>قد نحفظ صوراً أو وسائط في ألبومك عند الحاجة. / We may save images or media to your library when needed.</string>
+
+	<!-- Microphone (voice messages, fault report audio) -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs access to microphone to record voice messages</string>
+	<string>نحتاج الميكروفون لتسجيل رسائل صوتية أو وصف الأعطال صوتياً. / The microphone is used for voice messages or audio fault descriptions.</string>
+
+	<!-- Allow canLaunchUrl / opening Phone, Maps, browsers (tel, maps, etc.) -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>sms</string>
+		<string>mailto</string>
+		<string>maps</string>
+		<string>comgooglemaps</string>
+		<string>googlechromes</string>
+	</array>
 </dict>
 </plist>

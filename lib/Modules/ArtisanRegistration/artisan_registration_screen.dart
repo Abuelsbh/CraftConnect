@@ -1,18 +1,19 @@
 import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../core/Language/app_languages.dart';
 import '../../providers/artisan_provider.dart';
 import '../../services/craft_service.dart';
 import '../../providers/simple_auth_provider.dart';
-import '../../services/artisan_service.dart';
-import '../../Models/artisan_model.dart';
 import '../../Widgets/custom_button_widget.dart';
 import '../../Widgets/custom_textfield_widget.dart';
 
@@ -37,6 +38,7 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
   List<String> _galleryImagePaths = [];
   bool _isLoading = false;
   bool _isLocationLoading = false;
+  bool _agreeToTerms = false;
   double? _latitude;
   double? _longitude;
   
@@ -213,6 +215,14 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
       return;
     }
 
+    if (!_agreeToTerms) {
+      _showErrorSnackBar(
+        AppLocalizations.of(context)?.translate('must_agree_terms') ??
+            'يجب الموافقة على الشروط والأحكام',
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -221,32 +231,13 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
       final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
       final artisanProvider = Provider.of<ArtisanProvider>(context, listen: false);
 
-      // إنشاء معرف فريد للحرفي
-      final artisanId = DateTime.now().millisecondsSinceEpoch.toString();
-
-      // إنشاء نموذج الحرفي
-      final artisan = ArtisanModel(
-        id: artisanId,
-        name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        profileImageUrl: _profileImagePath!,
-        craftType: _selectedCraftType,
-        yearsOfExperience: _yearsOfExperience,
-        description: _descriptionController.text.trim(),
-        latitude: _latitude!,
-        longitude: _longitude!,
-        address: _addressController.text.trim(),
-        galleryImages: _galleryImagePaths,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+      final fullPhone = AppConstants.formatPhoneWithCountryCode(_phoneController.text.trim());
 
       // حفظ الحرفي في Firebase
       await artisanProvider.registerArtisan(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
+        phone: fullPhone,
         craftType: _selectedCraftType,
         yearsOfExperience: _yearsOfExperience,
         description: _descriptionController.text.trim(),
@@ -308,6 +299,8 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
                   _buildLocationSection(),
                   SizedBox(height: 24.h),
                   _buildGallerySection(),
+                  SizedBox(height: 24.h),
+                  _buildTermsCheckbox(),
                   SizedBox(height: 32.h),
                   _buildSubmitButton(),
                 ],
@@ -447,12 +440,19 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
         SizedBox(height: 16.h),
         CustomTextFieldWidget(
           controller: _phoneController,
-          hint: 'رقم الهاتف',
+          hint: 'رقم الهاتف (965)',
           prefixIcon: Icon(Icons.phone_rounded),
           textInputType: TextInputType.phone,
+          formatter: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(AppConstants.phoneDigitsCount),
+          ],
           validator: (value) {
             if (value == null || value.trim().isEmpty) {
               return 'يرجى إدخال رقم الهاتف';
+            }
+            if (value.trim().length != AppConstants.phoneDigitsCount) {
+              return 'رقم الهاتف يجب أن يكون 8 أرقام';
             }
             return null;
           },
@@ -760,6 +760,71 @@ class _ArtisanRegistrationScreenState extends State<ArtisanRegistrationScreen> {
           ),
       ],
     );
+  }
+
+  Widget _buildTermsCheckbox() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Checkbox(
+          value: _agreeToTerms,
+          onChanged: (value) {
+            setState(() {
+              _agreeToTerms = value ?? false;
+            });
+          },
+          activeColor: Theme.of(context).colorScheme.primary,
+        ),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(top: 8.h),
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                children: [
+                  TextSpan(
+                    text: AppLocalizations.of(context)?.translate('agree_to_terms') ?? 'أوافق على ',
+                  ),
+                  TextSpan(
+                    text: AppLocalizations.of(context)?.translate('terms_conditions') ?? 'الشروط والأحكام',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = () => _openLegalUrl(AppConstants.termsAndConditionsUrl),
+                  ),
+                  TextSpan(
+                    text: AppLocalizations.of(context)?.translate('and') ?? ' و ',
+                  ),
+                  TextSpan(
+                    text: AppLocalizations.of(context)?.translate('privacy_policy') ?? 'سياسة الخصوصية',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = () => _openLegalUrl(AppConstants.privacyPolicyUrl),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openLegalUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Widget _buildSubmitButton() {

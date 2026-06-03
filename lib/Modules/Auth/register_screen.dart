@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../Utilities/app_constants.dart';
 import '../../core/Language/locales.dart';
 import '../../core/Language/app_languages.dart';
@@ -273,15 +276,19 @@ class _RegisterScreenState extends State<RegisterScreen>
           CustomTextFieldWidget(
             borderRadiusValue: 10.r,
             controller: _phoneController,
-            hint: AppLocalizations.of(context)?.translate('phone_number') ?? 'رقم الهاتف',
+            hint: '${AppLocalizations.of(context)?.translate('phone_number') ?? 'رقم الهاتف'} (965)',
             textInputType: TextInputType.phone,
             prefixIcon: Icon(Icons.phone_outlined, color: Theme.of(context).colorScheme.outline),
+            formatter: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(AppConstants.phoneDigitsCount),
+            ],
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return AppLocalizations.of(context)?.translate('phone_required') ?? 'رقم الهاتف مطلوب';
               }
-              if (value!.length < 10) {
-                return AppLocalizations.of(context)?.translate('invalid_phone') ?? 'رقم هاتف غير صحيح';
+              if (value!.length != AppConstants.phoneDigitsCount) {
+                return AppLocalizations.of(context)?.translate('invalid_phone') ?? 'رقم هاتف غير صحيح (8 أرقام)';
               }
               return null;
             },
@@ -590,7 +597,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
                     ),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = () => _openLegalUrl(AppConstants.termsAndConditionsUrl),
                   ),
                   TextSpan(
                     text: AppLocalizations.of(context)?.translate('and') ?? ' و ',
@@ -600,7 +610,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
                     ),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = () => _openLegalUrl(AppConstants.privacyPolicyUrl),
                   ),
                 ],
               ),
@@ -609,6 +622,13 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
       ],
     );
+  }
+
+  Future<void> _openLegalUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Widget _buildRegisterButton() {
@@ -668,6 +688,12 @@ class _RegisterScreenState extends State<RegisterScreen>
           icon: Icons.g_mobiledata_rounded,
           text: AppLocalizations.of(context)?.translate('continue_with_google') ?? 'المتابعة مع Google',
           onPressed: () => _handleGoogleRegister(),
+        ),
+        SizedBox(height: 12.h),
+        _buildSocialButton(
+          icon: Icons.apple,
+          text: AppLocalizations.of(context)?.translate('continue_with_apple') ?? 'المتابعة مع Apple',
+          onPressed: () => _handleAppleRegister(),
         ),
       ],
     );
@@ -914,7 +940,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         email: _emailController.text.trim(),
         password: _passwordController.text,
         name: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
+        phone: AppConstants.formatPhoneWithCountryCode(_phoneController.text.trim()),
       );
 
       if (!mounted) return;
@@ -994,7 +1020,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       email: _emailController.text.trim(),
       password: _passwordController.text,
       name: _nameController.text.trim(),
-      phone: _phoneController.text.trim(),
+      phone: AppConstants.formatPhoneWithCountryCode(_phoneController.text.trim()),
       userType: 'user',
       craftType: null,
       description: null,
@@ -1049,31 +1075,69 @@ class _RegisterScreenState extends State<RegisterScreen>
   Future<void> _handleGoogleRegister() async {
     final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
 
-    final success = await authProvider.loginWithGoogle();
+    final success = await authProvider.loginWithGoogle(
+      userType: _isArtisanMode ? 'artisan' : 'user',
+    );
 
     if (!mounted) return;
 
     if (success) {
-      context.go('/home');
-    } else {
-      // Get fresh references after mounted check and wrap in try-catch for safety
-      try {
-        if (!mounted) return;
-        final scaffoldMessenger = ScaffoldMessenger.of(context);
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              authProvider.errorMessage ?? 
-              (AppLocalizations.of(context)?.translate('google_register_failed') ?? 'فشل في التسجيل مع Google'),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } catch (e) {
-        // Widget was deactivated, ignore the error
-        if (kDebugMode) {
-          print('Could not show snackbar: $e');
+      if (_isArtisanMode) {
+        await authProvider.reloadUser();
+        final currentUser = authProvider.currentUser;
+        if (currentUser?.artisanId != null && currentUser!.artisanId!.isNotEmpty) {
+          context.go('/edit-artisan-profile/${currentUser.artisanId}');
+        } else {
+          context.go('/home');
         }
+      } else {
+        context.go('/home');
+      }
+    } else {
+      _showAuthError(authProvider.errorMessage ??
+          (AppLocalizations.of(context)?.translate('google_register_failed') ?? 'فشل في التسجيل مع Google'));
+    }
+  }
+
+  Future<void> _handleAppleRegister() async {
+    final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+
+    final success = await authProvider.loginWithApple(
+      userType: _isArtisanMode ? 'artisan' : 'user',
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      if (_isArtisanMode) {
+        await authProvider.reloadUser();
+        final currentUser = authProvider.currentUser;
+        if (currentUser?.artisanId != null && currentUser!.artisanId!.isNotEmpty) {
+          context.go('/edit-artisan-profile/${currentUser.artisanId}');
+        } else {
+          context.go('/home');
+        }
+      } else {
+        context.go('/home');
+      }
+    } else {
+      _showAuthError(authProvider.errorMessage ??
+          (AppLocalizations.of(context)?.translate('apple_register_failed') ?? 'فشل في التسجيل مع Apple'));
+    }
+  }
+
+  void _showAuthError(String message) {
+    try {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('Could not show snackbar: $e');
       }
     }
   }

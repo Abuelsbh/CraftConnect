@@ -4,9 +4,11 @@ import '../Models/chat_model.dart';
 import '../Models/user_model.dart';
 import '../Models/artisan_model.dart';
 import '../services/chat_service.dart';
+import '../services/notification_sound_service.dart';
 
 class ChatProvider with ChangeNotifier {
   final ChatService _chatService = ChatService();
+  final NotificationSoundService _notificationSoundService = NotificationSoundService();
   
   // State
   List<ChatRoom> _chatRooms = [];
@@ -17,9 +19,33 @@ class ChatProvider with ChangeNotifier {
   String? _errorMessage;
   StreamSubscription<List<ChatRoom>>? _chatRoomsSubscription;
   StreamSubscription<List<ChatMessage>>? _messagesSubscription;
+  int _previousMessagesCount = 0; // لتتبع عدد الرسائل السابق
+  String? _previousLastMessageId; // لتتبع آخر رسالة في الشات الحالي
+  bool _isInitialLoad = true; // للتحقق من أن هذا هو التحميل الأول للرسائل
+  final List<String> _playedMessageIds = []; // لتجنب تكرار الصوت لنفس الرسالة
+  final Map<String, DateTime> _playedRoomTimes = {}; // roomId -> آخر وقت شغلنا فيه الصوت
+
+  /// اسم المرسل المعلّق لعرضه في الواجهة (يُمسح بعد العرض)
+  String? _pendingNotificationSenderName;
+  String? get pendingNotificationSenderName => _pendingNotificationSenderName;
+  void clearPendingNotification() {
+    _pendingNotificationSenderName = null;
+    notifyListeners();
+  }
 
   // Getters
   List<ChatRoom> get chatRooms => _chatRooms;
+
+  /// هل يوجد أي محادثة بها رسائل غير مقروءة للمستخدم الحالي؟
+  bool get hasAnyUnreadMessages {
+    final effectiveUserId = _getEffectiveUserId();
+    if (effectiveUserId.isEmpty) return false;
+    return getFilteredChatRooms().any((room) {
+      if (!room.hasUnreadMessages) return false;
+      if (room.lastMessageSenderId == null || room.lastMessageSenderId!.isEmpty) return true;
+      return room.lastMessageSenderId!.trim() != effectiveUserId.trim();
+    });
+  }
   List<ChatMessage> get currentMessages => _currentMessages;
   ChatRoom? get currentRoom => _currentRoom;
   UserModel? get currentUser => _currentUser;
@@ -104,6 +130,9 @@ class ChatProvider with ChangeNotifier {
         .getChatRoomsForUser(effectiveUserId)
         .listen(
       (rooms) {
+        // التحقق من وجود رسائل جديدة في أي محادثة
+        _checkForNewMessagesInRooms(rooms);
+        
         _chatRooms = rooms;
         _setLoading(false);
         print('✅ [ChatProvider] Loaded ${rooms.length} chat rooms');
@@ -191,6 +220,11 @@ class ChatProvider with ChangeNotifier {
       _currentRoom = room;
       notifyListeners(); // Notify that currentRoom is set
       
+      // إعادة تعيين عدد الرسائل السابق عند فتح شات جديد
+      _previousMessagesCount = 0;
+      _previousLastMessageId = null;
+      _isInitialLoad = true; // هذا هو التحميل الأول للرسائل
+      
       // Load messages and wait for first batch
       _messagesSubscription?.cancel();
       
@@ -202,6 +236,16 @@ class ChatProvider with ChangeNotifier {
           .getMessagesForRoom(roomId)
           .listen(
         (messages) {
+          // التحقق من وجود رسالة جديدة (بعد التحميل الأول)
+          if (!_isInitialLoad) {
+            _checkAndPlayNotificationSound(messages);
+          } else {
+            // هذا هو التحميل الأول، تحديث المتغيرات دون تشغيل الصوت
+            _previousMessagesCount = messages.length;
+            _previousLastMessageId = messages.isNotEmpty ? messages.last.id : null;
+            _isInitialLoad = false;
+          }
+          
           _currentMessages = messages;
           if (!hasReceivedFirstMessages) {
             hasReceivedFirstMessages = true;
@@ -600,6 +644,117 @@ class ChatProvider with ChangeNotifier {
   void _setError(String error) {
     _errorMessage = error;
     notifyListeners();
+  }
+
+  /// التحقق من وجود رسالة جديدة وتشغيل الصوت (للشات الحالي)
+  void _checkAndPlayNotificationSound(List<ChatMessage> messages) {
+    if (_currentUser == null || messages.isEmpty) {
+      return;
+    }
+
+    final effectiveUserId = _getEffectiveUserId();
+    if (effectiveUserId.isEmpty) {
+      return;
+    }
+
+    // التحقق من وجود رسالة جديدة
+    if (messages.length > _previousMessagesCount || 
+        (messages.isNotEmpty && messages.last.id != _previousLastMessageId)) {
+      
+      // الحصول على آخر رسالة
+      final lastMessage = messages.last;
+      
+      // التحقق من أن الرسالة ليست من المستخدم الحالي (رسالة واردة)
+      final normalizedSenderId = lastMessage.senderId.trim();
+      final normalizedCurrentUserId = effectiveUserId.trim();
+      
+      if (normalizedSenderId != normalizedCurrentUserId) {
+        // تجنب تكرار الصوت لنفس الرسالة
+        if (!_playedMessageIds.contains(lastMessage.id)) {
+          _playedMessageIds.add(lastMessage.id);
+          if (_playedMessageIds.length > 50) {
+            _playedMessageIds.removeAt(0);
+          }
+          _notificationSoundService.playNotificationSound(key: lastMessage.id);
+          _showNotificationWithSenderName(normalizedSenderId);
+        }
+      }
+      
+      // تحديث المتغيرات
+      _previousMessagesCount = messages.length;
+      _previousLastMessageId = messages.last.id;
+    }
+  }
+
+  /// عرض إشعار مع اسم المرسل
+  Future<void> _showNotificationWithSenderName(String senderId) async {
+    try {
+      var senderName = (await getParticipantInfo(senderId))?.name;
+      senderName ??= (await getArtisanInfo(senderId))?.name;
+      _pendingNotificationSenderName = senderName ?? 'مستخدم';
+      notifyListeners();
+    } catch (_) {
+      _pendingNotificationSenderName = 'مستخدم';
+      notifyListeners();
+    }
+  }
+
+  /// التحقق من وجود رسائل جديدة في أي محادثة (من خارج الشات الحالي)
+  void _checkForNewMessagesInRooms(List<ChatRoom> rooms) {
+    if (_currentUser == null || rooms.isEmpty) {
+      return;
+    }
+
+    final effectiveUserId = _getEffectiveUserId();
+    if (effectiveUserId.isEmpty) {
+      return;
+    }
+
+    // البحث عن محادثات بها رسائل غير مقروءة للمستخدم الحالي (المرسل الآخر أرسل)
+    // والتأكد من أنها ليست الشات الحالي المفتوح
+    for (final room in rooms) {
+      final hasUnreadForMe = room.hasUnreadMessages &&
+          (room.lastMessageSenderId == null || room.lastMessageSenderId!.trim() != effectiveUserId.trim());
+      if (hasUnreadForMe && 
+          room.id != _currentRoom?.id &&
+          room.lastMessageTime != null) {
+        
+        final lastMessageTime = room.lastMessageTime!;
+        final lastPlayedForRoom = _playedRoomTimes[room.id];
+        
+        // تجنب تكرار الصوت لنفس المحادثة (رسالة جديدة فعلاً)
+        final isNewMessage = lastPlayedForRoom == null || 
+            lastMessageTime.isAfter(lastPlayedForRoom);
+        
+        if (!isNewMessage) continue;
+        
+        // إذا كان هناك شات حالي مفتوح، تحقق من أن الرسالة الجديدة أحدث من آخر رسالة في الشات الحالي
+        if (_currentRoom != null && _currentMessages.isNotEmpty) {
+          final lastMessageInCurrentChat = _currentMessages.last;
+          if (!lastMessageTime.isAfter(lastMessageInCurrentChat.timestamp)) {
+            continue;
+          }
+        }
+        
+        // رسالة جديدة في محادثة أخرى
+        _playedRoomTimes[room.id] = lastMessageTime;
+        if (_playedRoomTimes.length > 30) {
+          final keys = _playedRoomTimes.keys.toList();
+          for (var i = 0; i < keys.length - 30; i++) {
+            _playedRoomTimes.remove(keys[i]);
+          }
+        }
+        final soundKey = '${room.id}_${lastMessageTime.millisecondsSinceEpoch}';
+        _notificationSoundService.playNotificationSound(key: soundKey);
+        
+        // الحصول على اسم المرسل (المشارك الآخر في المحادثة)
+        final otherId = room.participant1Id == effectiveUserId
+            ? room.participant2Id
+            : room.participant1Id;
+        _showNotificationWithSenderName(otherId);
+        break; // شغل الصوت مرة واحدة فقط
+      }
+    }
   }
 
   // Dispose

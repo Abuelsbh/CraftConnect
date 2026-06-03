@@ -2,6 +2,7 @@
 class Assets {
   Assets._();
 
+  static const String audioNotification = 'assets/Audio/notification.mp3';
   static const String i18nAr = 'i18n/ar.json';
   static const String i18nEn = 'i18n/en.json';
   static const String iconsBrush = 'assets/icons/brush.svg';

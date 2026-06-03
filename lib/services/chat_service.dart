@@ -390,11 +390,12 @@ class ChatService {
           }
         }
         
-        // Also clear unread flag for this user in the chat room
+        // Also clear unread flag and count for this user in the chat room
         final roomSnapshot = await _chatRoomsRef.child(normalizedRoomId).get();
         if (roomSnapshot.exists) {
           await _chatRoomsRef.child(normalizedRoomId).update({
             'hasUnreadMessages': false,
+            'unreadCount': 0,
           });
         }
       }
@@ -547,10 +548,17 @@ class ChatService {
     if (roomSnapshot.exists) {
       // Room exists, update it
       // Note: hasUnreadMessages will be cleared when receiver opens the chat
+      final roomData = roomSnapshot.value as Map<dynamic, dynamic>;
+      final lastSender = (roomData['lastMessageSenderId'] ?? '').toString().trim();
+      final currentUnread = (roomData['unreadCount'] as num?)?.toInt() ?? 0;
+      // إذا نفس المرسل يرسل مرة أخرى: زيادة العدد. إذا مرسل جديد: إعادة تعيين إلى 1
+      final newUnreadCount = (lastSender == senderId) ? currentUnread + 1 : 1;
       await _chatRoomsRef.child(roomId).update({
         'lastMessage': message.content,
         'lastMessageTime': message.timestamp.millisecondsSinceEpoch,
+        'lastMessageSenderId': senderId,
         'hasUnreadMessages': true, // Receiver will have unread messages
+        'unreadCount': newUnreadCount,
       });
       print('✅ [ChatService] Updated existing chat room: $roomId');
     } else {
@@ -561,7 +569,9 @@ class ChatService {
         participant2Id: sortedIds[1],
         lastMessage: message.content,
         lastMessageTime: message.timestamp,
+        lastMessageSenderId: senderId,
         hasUnreadMessages: true, // Receiver will have unread messages
+        unreadCount: 1,
       );
       await _chatRoomsRef.child(roomId).set(newRoom.toJson());
       print('✅ [ChatService] Created new chat room: $roomId');

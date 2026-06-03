@@ -12,6 +12,7 @@ import '../../Models/craft_model.dart';
 import '../../providers/artisan_provider.dart';
 import '../Chat/chat_page.dart';
 import '../../providers/simple_auth_provider.dart';
+import '../../providers/chat_provider.dart';
 import '../Profile/profile_screen.dart';
 import '../FaultReport/fault_reports_screen.dart';
 import '../../services/artisan_service.dart';
@@ -1054,11 +1055,23 @@ class _HomeScreenState extends State<HomeScreen>
 
 
   Widget _buildBottomNavigation() {
-    return Consumer<SimpleAuthProvider>(
-      builder: (context, authProvider, _) {
+    return Consumer2<SimpleAuthProvider, ChatProvider>(
+      builder: (context, authProvider, chatProvider, _) {
         final isArtisan = authProvider.isLoggedIn && 
                          authProvider.currentUser != null && 
                          authProvider.currentUser!.userType == 'artisan';
+
+        // تهيئة ChatProvider عند تسجيل الدخول لعرض عدد الرسائل غير المقروءة
+        if (authProvider.isLoggedIn && authProvider.currentUser != null) {
+          if (chatProvider.currentUser == null || 
+              chatProvider.currentUser!.id != authProvider.currentUser!.id) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              chatProvider.initialize(authProvider.currentUser!);
+            });
+          }
+        }
+
+        final hasUnreadMessages = chatProvider.hasAnyUnreadMessages;
 
         // قائمة الأيقونات الكاملة
         final allNavItems = [
@@ -1097,7 +1110,12 @@ class _HomeScreenState extends State<HomeScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(
                   navItems.length,
-                  (index) => _buildNavItem(navItems[index], index, isArtisan),
+                  (index) => _buildNavItem(
+                    navItems[index],
+                    index,
+                    isArtisan,
+                    showUnreadBadge: navItems[index].labelKey == 'chat' && hasUnreadMessages,
+                  ),
                 ),
               ),
             ),
@@ -1107,7 +1125,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildNavItem(BottomNavItem item, int index, bool isArtisan) {
+  Widget _buildNavItem(BottomNavItem item, int index, bool isArtisan, {bool showUnreadBadge = false}) {
     // حساب الفهرس الفعلي في PageView
     int actualIndex;
     if (isArtisan) {
@@ -1137,15 +1155,33 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedContainer(
-              duration: AppConstants.animationDuration,
-              child: Icon(
-                item.icon,
-                size: isSelected ? 22.w : 20.w,
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.outline,
-              ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedContainer(
+                  duration: AppConstants.animationDuration,
+                  child: Icon(
+                    item.icon,
+                    size: isSelected ? 22.w : 20.w,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+                if (showUnreadBadge)
+                  Positioned(
+                    top: -2,
+                    right: -2,
+                    child: Container(
+                      width: 8.w,
+                      height: 8.w,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             SizedBox(height: 2.h),
             AnimatedDefaultTextStyle(

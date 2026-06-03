@@ -22,15 +22,28 @@ class ChatRoomTile extends StatelessWidget {
     this.onLongPress,
   });
 
+  /// هل المستخدم الحالي لديه رسائل غير مقروءة؟ (المرسل الآخر أرسل ولم يقرأ المستخدم الحالي)
+  bool get _hasUnreadForCurrentUser {
+    if (!room.hasUnreadMessages) return false;
+    if (room.lastMessageSenderId == null || room.lastMessageSenderId!.isEmpty) {
+      return true; // للتوافق مع البيانات القديمة
+    }
+    return room.lastMessageSenderId!.trim() != currentUserId.trim();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final hasUnread = _hasUnreadForCurrentUser;
     return Card(
       margin: EdgeInsets.only(bottom: 8.h),
       elevation: 1,
       color: isDarkMode ? Colors.grey[800] : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        side: hasUnread
+            ? BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6), width: 2)
+            : const BorderSide(width: 0, color: Colors.transparent),
       ),
       child: InkWell(
         onTap: onTap,
@@ -40,20 +53,20 @@ class ChatRoomTile extends StatelessWidget {
           padding: EdgeInsets.all(12.w),
           child: Row(
             children: [
-              _buildAvatar(context),
+              _buildAvatar(context, hasUnread: hasUnread),
               SizedBox(width: 12.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildHeader(context),
+                    _buildHeader(context, hasUnread: hasUnread),
                     SizedBox(height: 4.h),
-                    _buildLastMessage(context),
+                    _buildLastMessage(context, hasUnread: hasUnread),
                   ],
                 ),
               ),
               SizedBox(width: 8.w),
-              _buildTimeAndBadge(context),
+              _buildTimeAndBadge(context, hasUnread: hasUnread),
             ],
           ),
         ),
@@ -61,7 +74,7 @@ class ChatRoomTile extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(BuildContext context) {
+  Widget _buildAvatar(BuildContext context, {required bool hasUnread}) {
     return FutureBuilder<UserModel?>(
       future: _getOtherParticipantInfo(),
       builder: (context, snapshot) {
@@ -75,19 +88,17 @@ class ChatRoomTile extends StatelessWidget {
 
         ImageProvider? imageProvider = _getImageProvider(imageUrl);
 
+        Widget avatar;
         if (imageProvider != null) {
-          return CircleAvatar(
+          avatar = CircleAvatar(
             radius: 24.r,
             backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
             backgroundImage: imageProvider,
-            onBackgroundImageError: (exception, stackTrace) {
-              // Handle image loading errors silently
-              // The fallback child will be shown
-            },
+            onBackgroundImageError: (exception, stackTrace) {},
             child: null,
           );
         } else {
-          return CircleAvatar(
+          avatar = CircleAvatar(
             radius: 24.r,
             backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
             child: Text(
@@ -100,6 +111,27 @@ class ChatRoomTile extends StatelessWidget {
             ),
           );
         }
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            avatar,
+            if (hasUnread)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  width: 12.w,
+                  height: 12.w,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5.w),
+                  ),
+                ),
+              ),
+          ],
+        );
       },
     );
   }
@@ -133,7 +165,7 @@ class ChatRoomTile extends StatelessWidget {
     return null;
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, {required bool hasUnread}) {
     return FutureBuilder<UserModel?>(
       future: _getOtherParticipantInfo(),
       builder: (context, snapshot) {
@@ -153,8 +185,10 @@ class ChatRoomTile extends StatelessWidget {
                 name,
                 style: TextStyle(
                   fontSize: 16.sp,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onSurface,
+                  fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
+                  color: hasUnread
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).colorScheme.onSurface,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -175,7 +209,7 @@ class ChatRoomTile extends StatelessWidget {
     );
   }
 
-  Widget _buildLastMessage(BuildContext context) {
+  Widget _buildLastMessage(BuildContext context, {required bool hasUnread}) {
     if (room.lastMessage == null) {
       return Text(
         'لا توجد رسائل',
@@ -193,10 +227,10 @@ class ChatRoomTile extends StatelessWidget {
             room.lastMessage!,
             style: TextStyle(
               fontSize: 14.sp,
-              color: room.hasUnreadMessages
+              color: hasUnread
                   ? Theme.of(context).colorScheme.onSurface
                   : Theme.of(context).colorScheme.outline,
-              fontWeight: room.hasUnreadMessages ? FontWeight.w500 : FontWeight.normal,
+              fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -206,7 +240,7 @@ class ChatRoomTile extends StatelessWidget {
     );
   }
 
-  Widget _buildTimeAndBadge(BuildContext context) {
+  Widget _buildTimeAndBadge(BuildContext context, {required bool hasUnread}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -219,20 +253,13 @@ class ChatRoomTile extends StatelessWidget {
             ),
           ),
         SizedBox(height: 4.h),
-        if (room.unreadCount > 0)
+        if (hasUnread)
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+            width: 10.w,
+            height: 10.w,
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.primary,
-              borderRadius: BorderRadius.circular(10.r),
-            ),
-            child: Text(
-              room.unreadCount > 99 ? '99+' : room.unreadCount.toString(),
-              style: TextStyle(
-                fontSize: 10.sp,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+              shape: BoxShape.circle,
             ),
           ),
       ],

@@ -284,6 +284,12 @@ class _LoginScreenState extends State<LoginScreen>
           text: AppLocalizations.of(context)?.translate('continue_with_google') ?? 'المتابعة مع Google',
           onPressed: () => _handleGoogleLogin(),
         ),
+        SizedBox(height: 12.h),
+        _buildSocialButton(
+          icon: Icons.apple,
+          text: AppLocalizations.of(context)?.translate('continue_with_apple') ?? 'المتابعة مع Apple',
+          onPressed: () => _handleAppleLogin(),
+        ),
       ],
     );
   }
@@ -393,24 +399,38 @@ class _LoginScreenState extends State<LoginScreen>
     if (success) {
       context.go('/home');
     } else {
-      // Get fresh references after mounted check and wrap in try-catch for safety
-      try {
-        if (!mounted) return;
-        final scaffoldMessenger = ScaffoldMessenger.of(context);
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              authProvider.errorMessage ?? 
-              (AppLocalizations.of(context)?.translate('google_login_failed') ?? 'فشل في تسجيل الدخول مع Google'),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } catch (e) {
-        // Widget was deactivated, ignore the error
-        if (kDebugMode) {
-          print('Could not show snackbar: $e');
-        }
+      _showAuthError(authProvider.errorMessage ??
+          (AppLocalizations.of(context)?.translate('google_login_failed') ?? 'فشل في تسجيل الدخول مع Google'));
+    }
+  }
+
+  Future<void> _handleAppleLogin() async {
+    final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+
+    final success = await authProvider.loginWithApple();
+
+    if (!mounted) return;
+
+    if (success) {
+      context.go('/home');
+    } else {
+      _showAuthError(authProvider.errorMessage ??
+          (AppLocalizations.of(context)?.translate('apple_login_failed') ?? 'فشل في تسجيل الدخول مع Apple'));
+    }
+  }
+
+  void _showAuthError(String message) {
+    try {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('Could not show snackbar: $e');
       }
     }
   }

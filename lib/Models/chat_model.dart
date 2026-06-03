@@ -153,6 +153,7 @@ class ChatRoom extends Equatable {
   final String participant2Id;
   final String? lastMessage;
   final DateTime? lastMessageTime;
+  final String? lastMessageSenderId; // معرف مرسل آخر رسالة (للتأكد من أن المستخدم الحالي هو المستقبل)
   final bool hasUnreadMessages;
   final int unreadCount;
   final String? participant1Name;
@@ -166,6 +167,7 @@ class ChatRoom extends Equatable {
     required this.participant2Id,
     this.lastMessage,
     this.lastMessageTime,
+    this.lastMessageSenderId,
     this.hasUnreadMessages = false,
     this.unreadCount = 0,
     this.participant1Name,
@@ -183,6 +185,7 @@ class ChatRoom extends Equatable {
       lastMessageTime: json['lastMessageTime'] != null
           ? DateTime.fromMillisecondsSinceEpoch(json['lastMessageTime'])
           : null,
+      lastMessageSenderId: json['lastMessageSenderId'],
       hasUnreadMessages: json['hasUnreadMessages'] ?? false,
       unreadCount: json['unreadCount'] ?? 0,
       participant1Name: json['participant1Name'],
@@ -199,6 +202,7 @@ class ChatRoom extends Equatable {
       'participant2Id': participant2Id,
       'lastMessage': lastMessage,
       'lastMessageTime': lastMessageTime?.millisecondsSinceEpoch,
+      'lastMessageSenderId': lastMessageSenderId,
       'hasUnreadMessages': hasUnreadMessages,
       'unreadCount': unreadCount,
       'participant1Name': participant1Name,
@@ -214,6 +218,7 @@ class ChatRoom extends Equatable {
     String? participant2Id,
     String? lastMessage,
     DateTime? lastMessageTime,
+    String? lastMessageSenderId,
     bool? hasUnreadMessages,
     int? unreadCount,
     String? participant1Name,
@@ -227,6 +232,7 @@ class ChatRoom extends Equatable {
       participant2Id: participant2Id ?? this.participant2Id,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
+      lastMessageSenderId: lastMessageSenderId ?? this.lastMessageSenderId,
       hasUnreadMessages: hasUnreadMessages ?? this.hasUnreadMessages,
       unreadCount: unreadCount ?? this.unreadCount,
       participant1Name: participant1Name ?? this.participant1Name,
@@ -243,6 +249,7 @@ class ChatRoom extends Equatable {
         participant2Id,
         lastMessage,
         lastMessageTime,
+        lastMessageSenderId,
         hasUnreadMessages,
         unreadCount,
         participant1Name,

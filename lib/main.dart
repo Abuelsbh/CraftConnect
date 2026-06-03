@@ -8,6 +8,8 @@ import 'package:rush/rush.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'firebase_options.dart';
 
 import 'Utilities/fast_http_config.dart';
@@ -87,6 +89,14 @@ Future<void> main() async {
   FastHttpConfig.init();
 
   await GitIt.initGitIt();
+
+  // Use Android Photo Picker (no READ_MEDIA_IMAGES/VIDEO needed) - Google Play policy
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    final imagePicker = ImagePickerPlatform.instance;
+    if (imagePicker is ImagePickerAndroid) {
+      imagePicker.useAndroidPhotoPicker = true;
+    }
+  }
 
   runApp(const MyApp());
 }
@@ -177,7 +187,9 @@ class MyApp extends StatelessWidget {
                         PointerDeviceKind.trackpad,
                       },
                     ),
-                    child: child ?? const SizedBox.shrink(),
+                    child: _NewMessageNotificationListener(
+                      child: child ?? const SizedBox.shrink(),
+                    ),
                   ),
                 );
               },
@@ -185,6 +197,52 @@ class MyApp extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// يعرض اسم المرسل عند استلام رسالة جديدة مع الصوت
+class _NewMessageNotificationListener extends StatefulWidget {
+  final Widget child;
+
+  const _NewMessageNotificationListener({required this.child});
+
+  @override
+  State<_NewMessageNotificationListener> createState() =>
+      _NewMessageNotificationListenerState();
+}
+
+class _NewMessageNotificationListenerState
+    extends State<_NewMessageNotificationListener> {
+  bool _hasScheduledSnackBar = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ChatProvider>(
+      builder: (context, chatProvider, _) {
+        final senderName = chatProvider.pendingNotificationSenderName;
+        if (senderName != null && !_hasScheduledSnackBar) {
+          _hasScheduledSnackBar = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('رسالة جديدة من $senderName'),
+                duration: const Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            chatProvider.clearPendingNotification();
+            if (mounted) {
+              setState(() => _hasScheduledSnackBar = false);
+            }
+          });
+        } else if (senderName == null) {
+          _hasScheduledSnackBar = false;
+        }
+        return widget.child;
+      },
+      child: widget.child,
     );
   }
 }

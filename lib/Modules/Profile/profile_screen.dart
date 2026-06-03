@@ -534,7 +534,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final currentLanguage = languageProvider.appLang;
     final isDarkMode = themeProvider.appTheme.isDark;
     
-    final menuItems = [
+    final menuItems = <MenuItem>[
       MenuItem(
         icon: Icons.edit,
         title: AppLocalizations.of(context)?.translate('edit_profile') ?? 'تعديل الملف الشخصي',
@@ -579,13 +579,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: AppLocalizations.of(context)?.translate('about_app') ?? 'حول التطبيق',
         onTap: () => context.push('/about-app'),
       ),
-      // رابط إدارة الحرف (يمكن إخفاؤه أو إظهاره حسب الحاجة)
-      MenuItem(
-        icon: Icons.admin_panel_settings,
-        title: 'إدارة أنواع الحرف',
-        subtitle: 'إضافة وتعديل وحذف الحرف',
-        onTap: () => context.push('/admin/crafts'),
-      ),
+      // رابط إدارة الحرف (للأدمن فقط)
+      if (_userModel?.isAdmin == true)
+        MenuItem(
+          icon: Icons.admin_panel_settings,
+          title: 'إدارة أنواع الحرف',
+          subtitle: 'إضافة وتعديل وحذف الحرف',
+          onTap: () => context.push('/admin/crafts'),
+        ),
     ];
 
     return Column(

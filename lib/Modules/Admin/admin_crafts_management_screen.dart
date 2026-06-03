@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../Models/craft_model.dart';
 import '../../core/Language/locales.dart';
+import '../../providers/simple_auth_provider.dart';
 import '../../services/craft_service.dart';
 import '../../services/media_service.dart';
 import '../../core/Language/app_languages.dart';
@@ -28,6 +30,23 @@ class _AdminCraftsManagementScreenState extends State<AdminCraftsManagementScree
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAdminAccess());
+  }
+
+  void _checkAdminAccess() {
+    final authProvider = Provider.of<SimpleAuthProvider>(context, listen: false);
+    if (!authProvider.isLoggedIn || authProvider.currentUser?.isAdmin != true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('غير مصرح لك بالوصول لهذه الصفحة'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        context.go('/home');
+      }
+      return;
+    }
     _loadCrafts();
   }
 

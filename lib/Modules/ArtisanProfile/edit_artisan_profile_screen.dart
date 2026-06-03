@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -154,7 +155,7 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
         setState(() {
           _artisan = artisan;
           _nameController.text = artisan.name;
-          _phoneController.text = artisan.phone;
+          _phoneController.text = AppConstants.phoneToDisplay(artisan.phone);
           _emailController.text = artisan.email;
           _descriptionController.text = artisan.description;
 
@@ -422,9 +423,10 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
       }
 
       // تحديث بيانات الحرفي في Firestore
+      final fullPhone = AppConstants.formatPhoneWithCountryCode(_phoneController.text.trim());
       await _firestore.collection('artisans').doc(widget.artisanId).update({
         'name': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
+        'phone': fullPhone,
         'email': _emailController.text.trim(),
         'description': _descriptionController.text.trim(),
         'craftType': _selectedCraftType!,
@@ -446,7 +448,7 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
       // تحديث بيانات المستخدم أيضاً
       await _firestore.collection('users').doc(currentUser.id).update({
         'name': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
+        'phone': fullPhone,
         'updatedAt': DateTime.now().toIso8601String(),
       });
 
@@ -600,9 +602,9 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
                     TextFormField(
                       controller: _phoneController,
                       decoration: InputDecoration(
-                        labelText: AppLocalizations.of(context)
+                        labelText: '${AppLocalizations.of(context)
                                 ?.translate('phone_number') ??
-                            'رقم الهاتف',
+                            'رقم الهاتف'} (965)',
                         prefixIcon: const Icon(Icons.phone),
                         border: OutlineInputBorder(
                           borderRadius:
@@ -610,11 +612,18 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
                         ),
                       ),
                       keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(AppConstants.phoneDigitsCount),
+                      ],
                       validator: (value) {
                         if (value?.isEmpty ?? true) {
                           return AppLocalizations.of(context)
                                   ?.translate('phone_required_error') ??
                               'رقم الهاتف مطلوب';
+                        }
+                        if (value!.trim().length != AppConstants.phoneDigitsCount) {
+                          return 'رقم الهاتف يجب أن يكون 8 أرقام';
                         }
                         return null;
                       },

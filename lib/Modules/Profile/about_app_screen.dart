@@ -376,15 +376,15 @@ class _AboutAppScreenState extends State<AboutAppScreen> {
   }
 
   void _openTermsOfService() {
-    _openUrl('https://craftconnect.com/terms');
+    _openUrl(AppConstants.termsAndConditionsUrl);
   }
 
   void _openPrivacyPolicy() {
-    _openUrl('https://craftconnect.com/privacy');
+    _openUrl(AppConstants.privacyPolicyUrl);
   }
 
   void _openLicenseAgreement() {
-    _openUrl('https://craftconnect.com/license');
+    _openUrl(AppConstants.termsAndConditionsUrl);
   }
 
   void _showOpenSourceLicenses() {

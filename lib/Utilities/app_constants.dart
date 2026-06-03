@@ -5,6 +5,12 @@ class AppConstants {
   static const String appName = 'PIX & FIX';
   static const String appVersion = '1.0.0';
 
+  // Legal URLs - سياسة الخصوصية والشروط والأحكام
+  static const String privacyPolicyUrl =
+      'https://sites.google.com/view/pixfix-privacypolicy/home';
+  static const String termsAndConditionsUrl =
+      'https://sites.google.com/view/pixfix-privacypolicy/home';
+
   // Craft Types - يمكن تحميلها من Firebase
   static const List<String> defaultCraftTypes = [
     'carpenter',
@@ -60,4 +66,24 @@ class AppConstants {
   // Pagination
   static const int defaultPageSize = 20;
   static const int maxPageSize = 50;
+
+  // Phone - Kuwait
+  static const String phoneCountryCode = '965';
+  static const int phoneDigitsCount = 8;
+
+  /// Returns full phone with country code (965 + 8 digits)
+  static String formatPhoneWithCountryCode(String digits) {
+    final clean = digits.replaceAll(RegExp(r'[^\d]'), '');
+    return '$phoneCountryCode$clean';
+  }
+
+  /// Returns only the 8 digits for display in input (strips 965 prefix)
+  static String phoneToDisplay(String? phone) {
+    if (phone == null || phone.isEmpty) return '';
+    final clean = phone.replaceAll(RegExp(r'[^\d]'), '');
+    if (clean.startsWith(phoneCountryCode) && clean.length >= phoneCountryCode.length + phoneDigitsCount) {
+      return clean.substring(phoneCountryCode.length, phoneCountryCode.length + phoneDigitsCount);
+    }
+    return clean.length >= phoneDigitsCount ? clean.substring(0, phoneDigitsCount) : clean;
+  }
 } 

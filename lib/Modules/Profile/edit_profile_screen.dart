@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -58,7 +59,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     
     if (user != null) {
       _nameController.text = user.name;
-      _phoneController.text = user.phone;
+      _phoneController.text = AppConstants.phoneToDisplay(user.phone);
       // تحميل Base64 من profileImageUrl (إذا كان Base64) أو من Firestore
       _profileImageBase64 = user.profileImageUrl.isNotEmpty ? user.profileImageUrl : null;
     }
@@ -177,10 +178,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         SizedBox(height: 16.h),
         CustomTextFieldWidget(
           controller: _phoneController,
-          hint: 'رقم الهاتف',
+          hint: 'رقم الهاتف (965)',
           prefixIcon: const Icon(Icons.phone),
-
           textInputType: TextInputType.phone,
+          formatter: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(AppConstants.phoneDigitsCount),
+          ],
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return AppLocalizations.of(context)?.translate('phone_required') ?? 'رقم الهاتف مطلوب';
+            }
+            if (value.trim().length != AppConstants.phoneDigitsCount) {
+              return AppLocalizations.of(context)?.translate('invalid_phone') ?? 'رقم هاتف غير صحيح (8 أرقام)';
+            }
+            return null;
+          },
         ),
       ],
     );
@@ -367,9 +380,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
 
       // Update UserModel with new data
+      final fullPhone = AppConstants.formatPhoneWithCountryCode(_phoneController.text.trim());
       final updatedUser = currentUser.copyWith(
         name: _nameController.text,
-        phone: _phoneController.text,
+        phone: fullPhone,
         profileImageUrl: imageBase64, // تخزين Base64 String
         updatedAt: DateTime.now(),
       );
@@ -395,7 +409,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       // Update Firestore user document مع Base64
       await _firestore.collection('users').doc(currentUser.id).set({
         'name': _nameController.text,
-        'phone': _phoneController.text,
+        'phone': fullPhone,
         'profileImageUrl': imageBase64, // حفظ Base64 String في قاعدة البيانات
         'email': currentUser.email,
         'updatedAt': FieldValue.serverTimestamp(),

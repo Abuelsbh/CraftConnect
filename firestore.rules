@@ -21,12 +21,13 @@ service cloud.firestore {
     
     // قواعد الحرف
     match /crafts/{craftId} {
-      // يمكن للجميع قراءة الحرف
+      // يمكن للجميع قراءة الحرف النشطة
       allow read: if true;
       
-      // يمكن للحرفي إنشاء وتحديث حرفه
+      // يمكن للأدمن فقط إضافة/تعديل/حذف الحرف (يجب وجود مستخدم مع isAdmin: true)
       allow write: if request.auth != null && 
-        request.auth.uid == resource.data.artisanId;
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
     // قواعد المحادثات

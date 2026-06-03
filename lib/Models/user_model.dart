@@ -12,6 +12,7 @@ class UserModel extends Equatable {
   final String token;
   final String userType; // 'user' أو 'artisan'
   final String? artisanId; // معرف الحرفي إذا كان المستخدم حرفي
+  final bool isAdmin; // هل المستخدم مسؤول (للوصول لإدارة الحرف وغيرها)
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -27,6 +28,7 @@ class UserModel extends Equatable {
     this.token = '',
     this.userType = 'user',
     this.artisanId,
+    this.isAdmin = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -45,6 +47,7 @@ class UserModel extends Equatable {
         token: json['token']?.toString() ?? '',
         userType: json['userType']?.toString() ?? 'user',
         artisanId: json['artisanId']?.toString(),
+        isAdmin: json['isAdmin'] == true || json['isAdmin'] == 'true',
         createdAt: _parseDateTime(json['createdAt']),
         updatedAt: _parseDateTime(json['updatedAt']),
       );
@@ -59,6 +62,7 @@ class UserModel extends Equatable {
         token: json['token']?.toString() ?? '',
         userType: json['userType']?.toString() ?? 'user',
         artisanId: json['artisanId']?.toString(),
+        isAdmin: false,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -105,6 +109,7 @@ class UserModel extends Equatable {
       'token': token,
       'userType': userType,
       'artisanId': artisanId,
+      'isAdmin': isAdmin,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -122,6 +127,7 @@ class UserModel extends Equatable {
     String? token,
     String? userType,
     String? artisanId,
+    bool? isAdmin,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -137,6 +143,7 @@ class UserModel extends Equatable {
       token: token ?? this.token,
       userType: userType ?? this.userType,
       artisanId: artisanId ?? this.artisanId,
+      isAdmin: isAdmin ?? this.isAdmin,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -155,6 +162,7 @@ class UserModel extends Equatable {
         token,
         userType,
         artisanId,
+        isAdmin,
         createdAt,
         updatedAt,
       ];
